@@ -167,3 +167,22 @@ h2 {
   z-index: 1;
   opacity: 1 !important;
 }
+
+.linkButton {
+  background: none;
+  border: none;
+  color: #344955;
+  text-decoration: underline;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 1em;
+  padding: 0;
+  margin: 0;
+  transition: color 0.2s;
+}
+.linkButton:hover,
+.linkButton:focus {
+  color: #2c3d4d;
+  text-decoration: underline;
+  outline: none;
+}

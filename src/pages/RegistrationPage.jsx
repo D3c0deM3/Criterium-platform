@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendEmailVerification,
-} from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+import { auth } from "../firebase";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-analytics.js";
 import styles from "../styles/RegistrationPage.module.css";
 import { useNavigate } from "react-router-dom";
 import { db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+} from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAtxgJGFhLqCrhyUptk5wkDqM37YUed_vQ",
@@ -24,11 +24,11 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 getAnalytics(app);
 
 const RegistrationPage = () => {
   const [formType, setFormType] = useState("register");
+  const [loading, setLoading] = useState(false);
   const registerContainerRef = useRef(null);
   const logoRef = useRef(null);
   const registerFormRef = useRef(null);
@@ -220,12 +220,14 @@ const RegistrationPage = () => {
   // Form Handlers
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
+    setLoading(true);
     const email = e.target[0].value;
     const password = e.target[1].value;
     const confirmPassword = e.target[2].value;
 
     if (password !== confirmPassword) {
       alert("Passwords do not match");
+      setLoading(false);
       return;
     }
 
@@ -238,20 +240,24 @@ const RegistrationPage = () => {
           .then(() => {
             console.log("Verification email sent");
             setFormType("verify");
+            setLoading(false);
           })
           .catch((error) => {
             console.error("Error sending verification email:", error.message);
             alert(error.message);
+            setLoading(false);
           });
       })
       .catch((error) => {
         console.error("Registration error:", error.message);
         alert(error.message);
+        setLoading(false);
       });
   };
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     const email = e.target[0].value;
     const password = e.target[1].value;
 
@@ -265,6 +271,7 @@ const RegistrationPage = () => {
       console.log("Logged in:", user.email);
       if (user.emailVerified) {
         const hasProfile = await checkUserProfileExists(user.uid);
+        setLoading(false);
         if (hasProfile) {
           navigate("/dashboard");
         } else {
@@ -274,19 +281,23 @@ const RegistrationPage = () => {
         alert("Please verify your email before logging in.");
         auth.signOut();
         setFormType("verify");
+        setLoading(false);
       }
     } catch (error) {
       console.error("Login error:", error.message);
       alert(error.message);
+      setLoading(false);
     }
   };
 
   const handleVerifyClick = async () => {
+    setLoading(true);
     const user = auth.currentUser;
     if (user) {
       await user.reload();
       if (user.emailVerified) {
         const hasProfile = await checkUserProfileExists(user.uid);
+        setLoading(false);
         if (hasProfile) {
           navigate("/dashboard");
         } else {
@@ -294,10 +305,12 @@ const RegistrationPage = () => {
         }
       } else {
         alert("Please click the verification link in your email first.");
+        setLoading(false);
       }
     } else {
       alert("No user logged in. Please register or log in.");
       setFormType("register");
+      setLoading(false);
     }
   };
 
@@ -305,6 +318,11 @@ const RegistrationPage = () => {
     <>
       <canvas id="particle-bg" ref={canvasRef}></canvas>
       <div className={styles.centerWrapper}>
+        {loading && (
+          <div className={styles.loadingOverlay}>
+            <div className={styles.spinner}></div>
+          </div>
+        )}
         <div className={styles.logo} ref={logoRef}>
           .<span>Criterium</span>
         </div>
@@ -321,16 +339,23 @@ const RegistrationPage = () => {
                   className={styles.registerForm}
                   onSubmit={handleRegisterSubmit}
                 >
-                  <input type="email" placeholder="Email" required />
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    required
+                    disabled={loading}
+                  />
                   <input
                     type="password"
                     placeholder="Create password"
                     required
+                    disabled={loading}
                   />
                   <input
                     type="password"
                     placeholder="Re-enter password"
                     required
+                    disabled={loading}
                   />
                   <p className={styles.loginLink}>
                     Already a member?{" "}
@@ -338,11 +363,16 @@ const RegistrationPage = () => {
                       type="button"
                       onClick={() => setFormType("login")}
                       className={styles.linkButton}
+                      disabled={loading}
                     >
                       Log in here!
                     </button>
                   </p>
-                  <button type="submit" className={styles.registerBtn}>
+                  <button
+                    type="submit"
+                    className={styles.registerBtn}
+                    disabled={loading}
+                  >
                     Register
                   </button>
                 </form>
@@ -357,19 +387,34 @@ const RegistrationPage = () => {
               >
                 <h2>Login</h2>
                 <form className={styles.loginForm} onSubmit={handleLoginSubmit}>
-                  <input type="email" placeholder="Email" required />
-                  <input type="password" placeholder="Password" required />
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    required
+                    disabled={loading}
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    required
+                    disabled={loading}
+                  />
                   <p className={styles.registerLink}>
                     New here?{" "}
                     <button
                       type="button"
                       onClick={() => setFormType("register")}
                       className={styles.linkButton}
+                      disabled={loading}
                     >
                       Join us now!
                     </button>
                   </p>
-                  <button type="submit" className={styles.loginBtn}>
+                  <button
+                    type="submit"
+                    className={styles.loginBtn}
+                    disabled={loading}
+                  >
                     Login
                   </button>
                 </form>
@@ -390,6 +435,7 @@ const RegistrationPage = () => {
                 <button
                   className={styles.verifyBtn}
                   onClick={handleVerifyClick}
+                  disabled={loading}
                 >
                   Continue
                 </button>
@@ -399,6 +445,7 @@ const RegistrationPage = () => {
                     type="button"
                     onClick={() => setFormType("login")}
                     className={styles.linkButton}
+                    disabled={loading}
                   >
                     Log in here!
                   </button>
