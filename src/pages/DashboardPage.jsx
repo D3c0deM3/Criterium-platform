@@ -17,7 +17,7 @@ import {
   onSnapshot,
   deleteDoc,
 } from "firebase/firestore";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import { motion } from "framer-motion";
 
