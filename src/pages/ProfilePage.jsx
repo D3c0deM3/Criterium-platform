@@ -186,7 +186,7 @@ const ProfilePage = () => {
           <img
             className={styles.profilePicImg}
             src={profilePic}
-            alt="Profile Picture"
+            alt="Profile"
           />
           <input
             type="file"

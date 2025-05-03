@@ -10,7 +10,6 @@ import {
   arrayUnion,
   arrayRemove,
   increment,
-  where,
   query,
   orderBy,
   limit,
@@ -33,12 +32,10 @@ const DashboardPage = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [likedPosts, setLikedPosts] = useState([]); // post IDs liked by user
   const [authorNames, setAuthorNames] = useState({}); // { username: fullName }
-  const [imageOrientations, setImageOrientations] = useState({}); // { postId: 'portrait' | 'landscape' }
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const debounceTimeout = useRef();
   const navigate = useNavigate();
-  const location = useLocation();
   const [lastVisible, setLastVisible] = useState(null);
   const feedRef = useRef();
   const [menuOpen, setMenuOpen] = useState({}); // { postId: boolean }
@@ -246,7 +243,7 @@ const DashboardPage = () => {
         alert("Failed to update like. Please try again later.");
       }
     },
-    [user, db]
+    [user]
   );
 
   // Helper for pretty date
@@ -276,14 +273,6 @@ const DashboardPage = () => {
     if (num >= 1e3) return (num / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
     return num;
   };
-
-  // Helper to handle image load and set orientation
-  const handleImageLoad = React.useCallback((e, postId) => {
-    const img = e.target;
-    const orientation =
-      img.naturalWidth > img.naturalHeight ? "landscape" : "portrait";
-    setImageOrientations((prev) => ({ ...prev, [postId]: orientation }));
-  }, []);
 
   const handleMenuToggle = (postId) => {
     setMenuOpen((prev) => ({ ...prev, [postId]: !prev[postId] }));
@@ -477,7 +466,6 @@ const DashboardPage = () => {
                           alt="Post"
                           style={imageStyle}
                           loading="lazy"
-                          onLoad={(e) => handleImageLoad(e, post.id)}
                         />
                       </div>
                     )}

@@ -39,58 +39,78 @@ const RegistrationPage = () => {
 
   // GSAP Animations
   useEffect(() => {
-    gsap.fromTo(registerContainerRef.current, {
-      scale: 0.8,
-      opacity: 0,
-    }, {
-      scale: 1,
-      opacity: 1,
-      duration: 0.6,
-      ease: "power4.out",
-    });
+    gsap.fromTo(
+      registerContainerRef.current,
+      {
+        scale: 0.8,
+        opacity: 0,
+      },
+      {
+        scale: 1,
+        opacity: 1,
+        duration: 0.6,
+        ease: "power4.out",
+      }
+    );
 
-    gsap.fromTo(logoRef.current, {
-      opacity: 0,
-      y: -20,
-    }, {
-      opacity: 1,
-      y: 0,
-      duration: 0.6,
-      ease: "power4.out",
-    });
+    gsap.fromTo(
+      logoRef.current,
+      {
+        opacity: 0,
+        y: -20,
+      },
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.6,
+        ease: "power4.out",
+      }
+    );
   }, []);
 
   useEffect(() => {
     if (formType === "register" && registerFormRef.current) {
-      gsap.fromTo(registerFormRef.current, {
-        scale: 0.8,
-        opacity: 0,
-      }, {
-        scale: 1,
-        opacity: 1,
-        duration: 0.4,
-        ease: "power4.out",
-      });
+      gsap.fromTo(
+        registerFormRef.current,
+        {
+          scale: 0.8,
+          opacity: 0,
+        },
+        {
+          scale: 1,
+          opacity: 1,
+          duration: 0.4,
+          ease: "power4.out",
+        }
+      );
     } else if (formType === "login" && loginFormRef.current) {
-      gsap.fromTo(loginFormRef.current, {
-        scale: 0.8,
-        opacity: 0,
-      }, {
-        scale: 1,
-        opacity: 1,
-        duration: 0.4,
-        ease: "power4.out",
-      });
+      gsap.fromTo(
+        loginFormRef.current,
+        {
+          scale: 0.8,
+          opacity: 0,
+        },
+        {
+          scale: 1,
+          opacity: 1,
+          duration: 0.4,
+          ease: "power4.out",
+        }
+      );
     } else if (formType === "verify" && verifyFormRef.current) {
-      gsap.fromTo(verifyFormRef.current, {
-        scale: 0.8,
-        opacity: 0,
-      }, {
-        scale: 1,
-        opacity: 1,
-        duration: 0.4,
-        ease: "power4.out",
-      });
+      gsap.fromTo(
+        verifyFormRef.current,
+        {
+          scale: 0.8,
+          opacity: 0,
+        },
+        {
+          scale: 1,
+          opacity: 1,
+          duration: 0.4,
+          ease: "power4.out",
+        }
+      );
     }
   }, [formType]);
 
@@ -236,7 +256,11 @@ const RegistrationPage = () => {
     const password = e.target[1].value;
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
       const user = userCredential.user;
       console.log("Logged in:", user.email);
       if (user.emailVerified) {
@@ -293,9 +317,16 @@ const RegistrationPage = () => {
                 ref={registerFormRef}
               >
                 <h2>Register</h2>
-                <form className={styles.registerForm} onSubmit={handleRegisterSubmit}>
+                <form
+                  className={styles.registerForm}
+                  onSubmit={handleRegisterSubmit}
+                >
                   <input type="email" placeholder="Email" required />
-                  <input type="password" placeholder="Create password" required />
+                  <input
+                    type="password"
+                    placeholder="Create password"
+                    required
+                  />
                   <input
                     type="password"
                     placeholder="Re-enter password"
@@ -303,9 +334,13 @@ const RegistrationPage = () => {
                   />
                   <p className={styles.loginLink}>
                     Already a member?{" "}
-                    <a href="#" onClick={() => setFormType("login")}>
+                    <button
+                      type="button"
+                      onClick={() => setFormType("login")}
+                      className={styles.linkButton}
+                    >
                       Log in here!
-                    </a>
+                    </button>
                   </p>
                   <button type="submit" className={styles.registerBtn}>
                     Register
@@ -315,16 +350,24 @@ const RegistrationPage = () => {
             )}
 
             {formType === "login" && (
-              <div id="login-form" className={styles.formContent} ref={loginFormRef}>
+              <div
+                id="login-form"
+                className={styles.formContent}
+                ref={loginFormRef}
+              >
                 <h2>Login</h2>
                 <form className={styles.loginForm} onSubmit={handleLoginSubmit}>
                   <input type="email" placeholder="Email" required />
                   <input type="password" placeholder="Password" required />
                   <p className={styles.registerLink}>
                     New here?{" "}
-                    <a href="#" onClick={() => setFormType("register")}>
+                    <button
+                      type="button"
+                      onClick={() => setFormType("register")}
+                      className={styles.linkButton}
+                    >
                       Join us now!
-                    </a>
+                    </button>
                   </p>
                   <button type="submit" className={styles.loginBtn}>
                     Login
@@ -334,20 +377,31 @@ const RegistrationPage = () => {
             )}
 
             {formType === "verify" && (
-              <div id="verify-form" className={styles.formContent} ref={verifyFormRef}>
+              <div
+                id="verify-form"
+                className={styles.formContent}
+                ref={verifyFormRef}
+              >
                 <h2>Verify Your Email</h2>
                 <p>
                   We've sent a verification link to your email. Please click it,
                   then press "Continue" below.
                 </p>
-                <button className={styles.verifyBtn} onClick={handleVerifyClick}>
+                <button
+                  className={styles.verifyBtn}
+                  onClick={handleVerifyClick}
+                >
                   Continue
                 </button>
                 <p className={styles.loginLink}>
                   Already verified?{" "}
-                  <a href="#" onClick={() => setFormType("login")}>
+                  <button
+                    type="button"
+                    onClick={() => setFormType("login")}
+                    className={styles.linkButton}
+                  >
                     Log in here!
-                  </a>
+                  </button>
                 </p>
               </div>
             )}

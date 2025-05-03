@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
@@ -46,7 +46,7 @@ function App() {
     const auth = getAuth();
     const user = auth.currentUser;
     if (user) {
-      if (localStorage.getItem('profileComplete') === 'true') {
+      if (localStorage.getItem("profileComplete") === "true") {
         navigate("/dashboard");
       } else {
         navigate("/profile");
@@ -62,12 +62,15 @@ function App() {
       <section className={styles.hero}>
         <div className={styles.heroContent}>
           <h1 className={styles.animatedText}>
-            .Criterium - <span className={styles.highlight}>New Perspective</span>
+            .Criterium -{" "}
+            <span className={styles.highlight}>New Perspective</span>
           </h1>
           <p className={styles.subtitle}>
             A platform for curious minds to write, read, and inspire.
           </p>
-          <button className={styles.ctaButton} onClick={handleStartWriting}>Start Writing</button>
+          <button className={styles.ctaButton} onClick={handleStartWriting}>
+            Start Writing
+          </button>
         </div>
       </section>
     </>

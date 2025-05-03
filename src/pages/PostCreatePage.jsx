@@ -6,14 +6,10 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import Sidebar from "./Sidebar";
 import { CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "../constants";
 
-const PERSON_ICON =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E";
-
 const PostCreatePage = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
@@ -158,7 +154,6 @@ const PostCreatePage = () => {
           sel.removeAllRanges();
           sel.addRange(range);
         }
-        setContent(contentEditableRef.current.innerHTML);
       } else {
         // Show Cloudinary error message if available
         alert(
@@ -168,11 +163,6 @@ const PostCreatePage = () => {
     } catch (err) {
       alert("Image upload failed: " + err.message);
     }
-  };
-
-  // Keep content state in sync with contenteditable
-  const handleContentInput = () => {
-    setContent(contentEditableRef.current.innerHTML);
   };
 
   if (loading) {

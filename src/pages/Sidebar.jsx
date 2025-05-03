@@ -40,10 +40,10 @@ const Sidebar = ({ userProfile, sidebarOpen }) => {
         </div>
       </div>
       <div className={styles.navLinks}>
-        <a href="#" className={styles.navItem}>
+        <button type="button" className={styles.navItem}>
           <span className={styles.icon + " " + styles.hashtag}>#</span>{" "}
           <span>explore</span>
-        </a>
+        </button>
         <button
           type="button"
           className={
@@ -101,7 +101,7 @@ const Sidebar = ({ userProfile, sidebarOpen }) => {
           </span>
           New thought
         </button>
-        <a href="#" className={styles.navItem}>
+        <button type="button" className={styles.navItem}>
           <span className={styles.icon}>
             <svg
               width="20"
@@ -120,11 +120,11 @@ const Sidebar = ({ userProfile, sidebarOpen }) => {
             </svg>
           </span>
           <span>Menu 2</span>
-        </a>
-        <a href="#" className={styles.navItem}>
+        </button>
+        <button type="button" className={styles.navItem}>
           <span className={styles.icon + " " + styles.hashtag}>#</span>{" "}
           <span>preferences</span>
-        </a>
+        </button>
       </div>
     </aside>
   );
