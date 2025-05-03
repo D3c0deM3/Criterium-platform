@@ -284,11 +284,13 @@ const DashboardPage = () => {
     fetchData();
   }, [followingUsernames]);
 
+  // Update followingPosts when posts or followingUsernames change
   useEffect(() => {
     if (posts.length > 0 && followingUsernames.length > 0) {
-      setFollowingPosts(
-        posts.filter((post) => followingUsernames.includes(post.username))
+      const filtered = posts.filter((post) =>
+        followingUsernames.includes(post.username)
       );
+      setFollowingPosts(filtered);
     } else {
       setFollowingPosts([]);
     }
@@ -382,28 +384,37 @@ const DashboardPage = () => {
   const handleRemovePost = async (postId) => {
     if (!window.confirm("Are you sure you want to remove this post?")) return;
     try {
+      // Show loading state
       setLoading(true);
+
+      // Delete document from Firestore
       await deleteDoc(doc(db, "posts", postId));
+
+      // Update both posts arrays in local state
       setPosts((prev) => prev.filter((p) => p.id !== postId));
       setFollowingPosts((prev) => prev.filter((p) => p.id !== postId));
-      setMenuOpen((prev) => {
-        const copy = { ...prev };
-        delete copy[postId];
-        return copy;
-      });
-      // Remove from session storage
+
+      // Also clear this post from session storage
       const cached = sessionStorage.getItem("postsWindow");
       if (cached) {
         const { posts, lastVisible } = JSON.parse(cached);
         const updatedPosts = posts.filter((p) => p.id !== postId);
         sessionStorage.setItem(
           "postsWindow",
-          JSON.stringify({ posts: updatedPosts, lastVisible })
+          JSON.stringify({
+            posts: updatedPosts,
+            lastVisible,
+          })
         );
       }
+
+      // Hide loading state
       setLoading(false);
+
+      // Show success message
       alert("Post removed successfully");
     } catch (err) {
+      console.error("Error removing post:", err);
       setLoading(false);
       alert("Failed to remove post. Please try again.");
     }
