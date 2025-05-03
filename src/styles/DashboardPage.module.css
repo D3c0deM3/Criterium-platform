@@ -457,7 +457,11 @@
     padding-left: 10px;
   }
   .tabs {
-    display: none;
+    display: flex;
+    margin-bottom: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e0e0e0;
   }
   .postTitle {
     font-size: 16px;

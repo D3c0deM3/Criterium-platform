@@ -22,6 +22,7 @@ const PostCreatePage = () => {
     underline: false,
     bullet: false,
   });
+  const [imageUploading, setImageUploading] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -125,6 +126,7 @@ const PostCreatePage = () => {
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    setImageUploading(true);
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
@@ -162,6 +164,8 @@ const PostCreatePage = () => {
       }
     } catch (err) {
       alert("Image upload failed: " + err.message);
+    } finally {
+      setImageUploading(false);
     }
   };
 
@@ -351,6 +355,11 @@ const PostCreatePage = () => {
             onChange={handleImageUpload}
           />
         </div>
+        {imageUploading && (
+          <div className={styles.loadingOverlay}>
+            <div className={styles.spinner}></div>
+          </div>
+        )}
         <form className={styles.postForm} onSubmit={handlePublish}>
           <input
             className={styles.postTitle}
