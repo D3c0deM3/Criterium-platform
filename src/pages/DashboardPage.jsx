@@ -46,7 +46,6 @@ const DashboardPage = () => {
   const feedRef = useRef();
   const [menuOpen, setMenuOpen] = useState({}); // { postId: boolean }
   const [expandedPosts, setExpandedPosts] = useState({}); // { postId: true/false }
-  const [likeLoading, setLikeLoading] = useState({}); // { postId: boolean }
 
   // Debounce search input
   useEffect(() => {
@@ -287,7 +286,11 @@ const DashboardPage = () => {
 
   // Update followingPosts when posts or followingUsernames change
   useEffect(() => {
-    if (posts.length > 0 && followingUsernames.length > 0) {
+    if (
+      posts.length > 0 &&
+      followingUsernames &&
+      followingUsernames.length > 0
+    ) {
       const filtered = posts.filter((post) =>
         followingUsernames.includes(post.username)
       );
@@ -727,7 +730,6 @@ const DashboardPage = () => {
                               }
                               onClick={() => handleLike(post.id, isLiked)}
                               aria-label={isLiked ? "Unlike" : "Like"}
-                              disabled={likeLoading[post.id]}
                             >
                               {isLiked ? "❤️" : "🤍"}
                             </button>
