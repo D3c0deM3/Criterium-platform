@@ -284,21 +284,21 @@ const DashboardPage = () => {
     fetchData();
   }, []);
 
-  // Update followingPosts when posts or followingUsernames change
-  useEffect(() => {
+  // Memoized following posts
+  const filteredFollowingPosts = useMemo(() => {
     if (
       posts.length > 0 &&
       followingUsernames &&
       followingUsernames.length > 0
     ) {
-      const filtered = posts.filter((post) =>
-        followingUsernames.includes(post.username)
-      );
-      setFollowingPosts(filtered);
-    } else {
-      setFollowingPosts([]);
+      return posts.filter((post) => followingUsernames.includes(post.username));
     }
+    return [];
   }, [posts, followingUsernames]);
+
+  useEffect(() => {
+    setFollowingPosts(filteredFollowingPosts);
+  }, [filteredFollowingPosts]);
 
   const handleTabClick = (tab) => setActiveTab(tab);
 
