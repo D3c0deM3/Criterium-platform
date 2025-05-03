@@ -703,9 +703,9 @@
   }
 }
 
-.collapsedText {
-  /* No extra styles needed, handled inline, but keep for clarity */
-}
+/* .collapsedText {
+  No extra styles needed, handled inline, but keep for clarity
+} */
 
 .showMoreBtn {
   color: #344955;
