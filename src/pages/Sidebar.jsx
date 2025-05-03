@@ -24,7 +24,11 @@ const Sidebar = ({ userProfile, sidebarOpen }) => {
       }
     >
       <div className={styles.logo}>criterium</div>
-      <div className={styles.userInfo}>
+      <div
+        className={styles.userInfo}
+        style={{ cursor: "pointer" }}
+        onClick={() => navigate("/account")}
+      >
         <img
           className={styles.userInfoImg}
           src={profile?.photoURL || PERSON_ICON}
@@ -73,6 +77,32 @@ const Sidebar = ({ userProfile, sidebarOpen }) => {
             </svg>
           </span>{" "}
           <span>Home</span>
+        </button>
+        <button
+          type="button"
+          className={
+            styles.navItem +
+            (location.pathname === "/account" ? " " + styles.navItemActive : "")
+          }
+          onClick={() => navigate("/account")}
+        >
+          <span className={styles.icon}>
+            {/* Account SVG */}
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="7" r="4" />
+              <path d="M5.5 21h13a2 2 0 0 0 2-2v-1a7 7 0 0 0-7-7h-3a7 7 0 0 0-7 7v1a2 2 0 0 0 2 2z" />
+            </svg>
+          </span>{" "}
+          <span>My Account</span>
         </button>
         <button
           type="button"

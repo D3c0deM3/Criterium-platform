@@ -1,0 +1,570 @@
+/* AccountPage.module.css */
+
+.mainContent {
+  flex: 1;
+  padding: 40px 32px 32px 32px;
+  background: #f8f9fa;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.accountHeader {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(52, 73, 85, 0.07);
+  padding: 32px 32px 24px 32px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+
+.profilePicWrapper {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profilePic {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #f3f3f3;
+  border: 3px solid #e0e0e0;
+  box-shadow: 0 2px 8px rgba(52, 73, 85, 0.1);
+}
+
+.profileInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: center;
+  text-align: center;
+}
+
+.nameRow {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.fullName {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #222;
+}
+
+.username {
+  font-size: 1.1rem;
+  color: #888;
+  font-weight: 500;
+}
+
+.statsRow {
+  display: flex;
+  gap: 32px;
+  margin-top: 8px;
+  justify-content: center;
+  width: 100%;
+}
+
+.statBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 70px;
+}
+
+.statNumber {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #344955;
+}
+
+.statLabel {
+  font-size: 1rem;
+  color: #888;
+  margin-top: 2px;
+}
+
+.postsSection {
+  margin-top: 8px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(52, 73, 85, 0.07);
+  padding: 24px 24px 32px 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.sectionTitle {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #222;
+  margin-bottom: 18px;
+  text-align: center;
+}
+
+.emptyState {
+  color: #888;
+  text-align: center;
+  padding: 40px 0;
+  font-size: 1.1rem;
+}
+
+.postsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+  margin-top: 12px;
+  grid-auto-flow: dense;
+}
+
+.postCard {
+  position: relative;
+  background: #f7fafd;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(52, 73, 85, 0.06);
+  padding: 18px 16px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 180px;
+  transition: box-shadow 0.2s;
+  border: 2px solid #344955;
+  width: 100%;
+}
+
+.postCard:hover {
+  box-shadow: 0 4px 16px rgba(52, 73, 85, 0.13);
+}
+
+.postImage {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  background: #e0e0e0;
+}
+
+.postTitle {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #344955;
+  margin-bottom: 6px;
+  margin-top: 2px;
+}
+
+.postContent {
+  color: #333;
+  font-size: 1rem;
+  line-height: 1.5;
+  margin-bottom: 0;
+  word-break: break-word;
+}
+
+.postMetaRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 10px;
+  font-size: 0.98rem;
+  color: #888;
+  gap: 18px;
+}
+
+.likesMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #344955;
+}
+
+.dateMeta {
+  font-size: 0.97rem;
+  color: #bbb;
+  opacity: 0.7;
+  margin-left: 12px;
+}
+
+.loadingOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(255, 255, 255, 0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  border: 6px solid #e0e0e0;
+  border-top: 6px solid #344955;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  box-shadow: 0 2px 12px rgba(52, 73, 85, 0.15);
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.bio {
+  font-size: 1.08rem;
+  color: #444;
+  margin: 6px 0 0 0;
+  line-height: 1.6;
+  max-width: 600px;
+  word-break: break-word;
+  font-style: italic;
+}
+
+.likeButton {
+  font-size: 1.15rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #bbb;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.2s;
+}
+
+.likeButton.liked {
+  color: #ed4956;
+}
+
+.likeButton:not(.liked) {
+  color: #bbb;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  min-height: 48px;
+  margin-bottom: 0;
+  position: relative;
+  z-index: 1002;
+}
+
+.hamburger {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .mainContent {
+    padding: 18px 4vw 18px 4vw;
+  }
+  .accountHeader {
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 24px 12px 18px 12px;
+  }
+  .profilePic {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto;
+    display: block;
+  }
+  .profileInfo {
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    gap: 8px;
+  }
+  .nameRow {
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .fullName {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #222;
+  }
+  .username {
+    font-size: 1rem;
+    color: #888;
+    font-weight: 500;
+  }
+  .postsSection {
+    padding: 14px 4vw 18px 4vw;
+  }
+  .bio {
+    font-size: 1rem;
+    max-width: 100%;
+  }
+  .headerRow {
+    justify-content: flex-end;
+    margin-bottom: 8px;
+    min-height: 44px;
+  }
+  .hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 36px;
+    height: 36px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    gap: 5px;
+    z-index: 1003;
+    transition: all 0.3s ease;
+  }
+  .hamburger span {
+    display: block;
+    width: 24px;
+    height: 3px;
+    background: #344955;
+    border-radius: 2px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .hamburgerActive span:nth-child(1) {
+    transform: rotate(45deg) translate(5px, 5px);
+  }
+  .hamburgerActive span:nth-child(2) {
+    opacity: 0;
+  }
+  .hamburgerActive span:nth-child(3) {
+    transform: rotate(-45deg) translate(7px, -7px);
+  }
+  .sidebar {
+    display: none;
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 260px;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -2px 0 12px rgba(52, 73, 85, 0.13);
+    z-index: 1200;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
+    flex-direction: column;
+    padding: 30px 20px;
+  }
+  .sidebarActive {
+    display: flex;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .mainContent {
+    padding: 8px 0 8px 0;
+  }
+  .accountHeader {
+    padding: 14px 4vw 10px 4vw;
+    border-radius: 10px;
+  }
+  .profilePic {
+    width: 60px;
+    height: 60px;
+  }
+  .postsSection {
+    padding: 8px 2vw 10px 2vw;
+    border-radius: 10px;
+  }
+  .postsGrid {
+    gap: 12px;
+  }
+  .postCard {
+    padding: 10px 6px 10px 6px;
+    border-radius: 8px;
+    min-height: 120px;
+  }
+  .postImage {
+    max-height: 100px;
+    border-radius: 6px;
+  }
+}
+
+@media (min-width: 901px) {
+  .accountHeader {
+    align-items: center;
+  }
+  .profilePicWrapper {
+    align-self: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .profileInfo {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+  }
+  .nameRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .fullName {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #222;
+    text-align: left;
+  }
+  .username {
+    font-size: 1.1rem;
+    color: #888;
+    font-weight: 500;
+    text-align: left;
+  }
+}
+
+.followBtn {
+  background: #344955;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease-in-out;
+  margin-top: 12px;
+  width: 100%;
+  max-width: 420px;
+  min-width: 220px;
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+
+.followBtn:hover {
+  background: #263238;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.followBtn:disabled {
+  background: #bbb;
+  color: #fff;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+.followingBtn {
+  background: #fff;
+  color: #344955;
+  border: 2px solid #344955;
+  border-radius: 6px;
+  padding: 12px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease-in-out;
+  margin-top: 12px;
+  width: 100%;
+  max-width: 420px;
+  min-width: 220px;
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+
+.followingBtn:hover {
+  background: #f0f2f5;
+  color: #263238;
+  border-color: #263238;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.followingBtn:disabled {
+  background: #f8f8f8;
+  color: #aaa;
+  border-color: #ddd;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Post menu styling */
+.postOptionsMenu {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+}
+
+.dotsButton {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #555;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  padding: 0;
+}
+
+.dotsButton:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.postMenuDropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border-radius: 5px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  z-index: 3;
+  min-width: 100px;
+}
+
+.postMenuDropdown button {
+  width: 100%;
+  text-align: left;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+}
+
+.postMenuDropdown button:hover {
+  background-color: #f5f5f5;
+}
+
+.postMenuDropdown button:not(:last-child) {
+  border-bottom: 1px solid #eee;
+}

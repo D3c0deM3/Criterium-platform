@@ -10,6 +10,8 @@ import RegistrationPage from "./pages/RegistrationPage.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import PostCreatePage from "./pages/PostCreatePage.jsx";
+import AccountPage from "./pages/AccountPage.jsx";
+import UserProfilePage from "./pages/UserProfilePage.jsx";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -100,6 +102,21 @@ function App() {
             )
           }
         />
+        <Route
+          path="/account"
+          element={
+            user ? (
+              profileExists ? (
+                <AccountPage />
+              ) : (
+                <Navigate to="/profile" />
+              )
+            ) : (
+              <Navigate to="/register" />
+            )
+          }
+        />
+        <Route path="/user/:username" element={<UserProfilePage />} />
       </Routes>
     </Router>
   );

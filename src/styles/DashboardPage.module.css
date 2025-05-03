@@ -186,6 +186,11 @@
   cursor: pointer;
   font-weight: bold;
   transition: background-color 0.2s;
+  border-radius: 0;
+}
+
+.tab:hover {
+  background-color: rgba(52, 73, 85, 0.05);
 }
 
 .tabActive,
@@ -204,8 +209,10 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding-bottom: 0;
+  padding-bottom: 30px;
   scroll-padding-bottom: 40px;
+  opacity: 1;
+  transition: opacity 0.2s ease-in-out;
 }
 
 .post {
@@ -213,6 +220,7 @@
   padding: 15px;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 25px;
 }
 
 .postTitle {
@@ -234,6 +242,7 @@
   .post {
     padding: 20px;
     border-radius: 12px;
+    margin-bottom: 30px;
   }
   .postImage {
     max-height: 300px;
@@ -469,6 +478,7 @@
   .post {
     padding: 10px;
     border-radius: 10px;
+    margin-bottom: 20px;
   }
   .likeButton {
     font-size: 18px;
@@ -476,7 +486,8 @@
   .feed {
     min-height: unset;
     flex: 1 1 auto;
-    padding-bottom: 0;
+    padding: 12px;
+    padding-bottom: 25px;
     scroll-padding-bottom: 24px;
   }
   .feedSpacer {
@@ -670,4 +681,59 @@
 }
 .feed .post:last-child {
   margin-bottom: 0;
+}
+
+.authorAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #f3f3f3;
+  border: 2px solid #e0e0e0;
+  box-shadow: 0 1px 4px rgba(52, 73, 85, 0.08);
+  display: inline-block;
+  margin-right: 4px;
+  transition: box-shadow 0.2s;
+  overflow: hidden;
+}
+@media (max-width: 600px) {
+  .authorAvatar {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+.collapsedText {
+  /* No extra styles needed, handled inline, but keep for clarity */
+}
+
+.showMoreBtn {
+  color: #344955;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 1em;
+  margin-top: 2px;
+  padding: 0;
+  transition: color 0.2s;
+}
+.showMoreBtn:hover,
+.showMoreBtn:focus {
+  color: #263238;
+  text-decoration: underline;
+  outline: none;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.feed > div {
+  width: 100%;
 }

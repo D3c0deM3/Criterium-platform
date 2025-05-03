@@ -19,19 +19,25 @@ import {
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 const POSTS_PAGE_SIZE = 15;
+
+// Add PERSON_ICON for default profile
+const PERSON_ICON =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E";
 
 const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [posts, setPosts] = useState([]);
+  const [followingPosts, setFollowingPosts] = useState([]); // Store following posts separately
   const [activeTab, setActiveTab] = useState("for-you");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [likedPosts, setLikedPosts] = useState([]); // post IDs liked by user
   const [authorNames, setAuthorNames] = useState({}); // { username: fullName }
+  const [followingUsernames, setFollowingUsernames] = useState([]); // Usernames of users being followed
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const debounceTimeout = useRef();
@@ -39,6 +45,8 @@ const DashboardPage = () => {
   const [lastVisible, setLastVisible] = useState(null);
   const feedRef = useRef();
   const [menuOpen, setMenuOpen] = useState({}); // { postId: boolean }
+  const [expandedPosts, setExpandedPosts] = useState({}); // { postId: true/false }
+  const [likeLoading, setLikeLoading] = useState({}); // { postId: boolean }
 
   // Debounce search input
   useEffect(() => {
@@ -51,9 +59,12 @@ const DashboardPage = () => {
 
   // Memoized filtered posts (search only loaded posts)
   const filteredPosts = useMemo(() => {
-    if (!debouncedQuery.trim()) return posts;
+    // Select the appropriate post array based on active tab
+    const sourceArray = activeTab === "for-you" ? posts : followingPosts;
+
+    if (!debouncedQuery.trim()) return sourceArray;
     const q = debouncedQuery.trim().toLowerCase();
-    return posts.filter((post) => {
+    return sourceArray.filter((post) => {
       const title = post.title?.toLowerCase() || "";
       const text = post.text?.toLowerCase() || "";
       const author = (
@@ -63,7 +74,7 @@ const DashboardPage = () => {
       ).toLowerCase();
       return title.includes(q) || text.includes(q) || author.includes(q);
     });
-  }, [debouncedQuery, posts, authorNames]);
+  }, [debouncedQuery, posts, followingPosts, authorNames, activeTab]);
 
   // Load posts from sessionStorage if available
   useEffect(() => {
@@ -101,6 +112,41 @@ const DashboardPage = () => {
     });
     return () => unsub();
   }, []);
+
+  // Real-time listener for current user's profile to update following list
+  useEffect(() => {
+    if (!user) return;
+
+    const userDocRef = doc(db, "users", user.uid);
+    const unsub = onSnapshot(userDocRef, async (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const userData = docSnapshot.data();
+        setUserProfile(userData);
+        setLikedPosts(userData.likedPosts || []);
+
+        // Get followingId from user document
+        const userFollowingList = userData.followingId || [];
+
+        // Get usernames of followed users
+        if (userFollowingList.length > 0) {
+          const followedUsers = await Promise.all(
+            userFollowingList.map((uid) => getDoc(doc(db, "users", uid)))
+          );
+
+          const followedUsernames = followedUsers
+            .filter((doc) => doc.exists())
+            .map((doc) => doc.data().username)
+            .filter(Boolean);
+
+          setFollowingUsernames(followedUsernames);
+        } else {
+          setFollowingUsernames([]);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, [user]);
 
   // Infinite scroll: load more posts as user scrolls near end
   useEffect(() => {
@@ -158,13 +204,33 @@ const DashboardPage = () => {
       const currentUser = auth.currentUser;
       setUser(currentUser);
       let userLikedPosts = [];
+      let userFollowingList = [];
+
       if (currentUser) {
         // Fetch user profile
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         if (userDoc.exists()) {
-          setUserProfile(userDoc.data());
-          userLikedPosts = userDoc.data().likedPosts || [];
+          const userData = userDoc.data();
+          setUserProfile(userData);
+          userLikedPosts = userData.likedPosts || [];
           setLikedPosts(userLikedPosts);
+
+          // Get followingId from user document
+          userFollowingList = userData.followingId || [];
+
+          // Get usernames of followed users
+          if (userFollowingList.length > 0) {
+            const followedUsers = await Promise.all(
+              userFollowingList.map((uid) => getDoc(doc(db, "users", uid)))
+            );
+
+            const followedUsernames = followedUsers
+              .filter((doc) => doc.exists())
+              .map((doc) => doc.data().username)
+              .filter(Boolean);
+
+            setFollowingUsernames(followedUsernames);
+          }
         } else {
           setUserProfile(null);
         }
@@ -180,6 +246,7 @@ const DashboardPage = () => {
         new Set(postsList.map((post) => post.username).filter(Boolean))
       );
       const authorNameMap = {};
+      const authorPhotoMap = {};
       if (usernames.length > 0) {
         // Query all users with usernames in the posts
         const usersSnapshot = await getDocs(collection(db, "users"));
@@ -189,62 +256,99 @@ const DashboardPage = () => {
             authorNameMap[data.username] =
               (data.firstName || "") +
               (data.lastName ? " " + data.lastName : "");
+            authorPhotoMap[data.username] = data.photoURL || null;
           }
         });
       }
       setAuthorNames(authorNameMap);
-      setPosts(
-        postsList.sort(
+
+      const sortedPosts = postsList
+        .map((post) => ({
+          ...post,
+          authorPhotoURL: authorPhotoMap[post.username] || null,
+        }))
+        .sort(
           (a, b) =>
             (b.publishedAt?.seconds || 0) - (a.publishedAt?.seconds || 0)
-        )
+        );
+
+      setPosts(sortedPosts);
+
+      // Filter posts for following feed
+      const followingPostsList = sortedPosts.filter((post) =>
+        followingUsernames?.includes(post.username)
       );
+      setFollowingPosts(followingPostsList);
+
       setLoading(false);
     };
     fetchData();
   }, []);
 
+  // Update followingPosts when posts or followingUsernames change
+  useEffect(() => {
+    if (posts.length > 0 && followingUsernames.length > 0) {
+      const filtered = posts.filter((post) =>
+        followingUsernames.includes(post.username)
+      );
+      setFollowingPosts(filtered);
+    } else {
+      setFollowingPosts([]);
+    }
+  }, [posts, followingUsernames]);
+
   const handleTabClick = (tab) => setActiveTab(tab);
 
   // Like/unlike logic
-  const handleLike = React.useCallback(
-    async (postId, isLiked) => {
-      if (!user) return;
+  const handleLike = async (postId, isLiked) => {
+    if (!user) return;
+    setPosts((prevPosts) =>
+      prevPosts.map((post) =>
+        post.id === postId
+          ? { ...post, likes: (post.likes || 0) + (isLiked ? -1 : 1) }
+          : post
+      )
+    );
+    setFollowingPosts((prevPosts) =>
+      prevPosts.map((post) =>
+        post.id === postId
+          ? { ...post, likes: (post.likes || 0) + (isLiked ? -1 : 1) }
+          : post
+      )
+    );
+    setLikedPosts((prev) =>
+      isLiked ? prev.filter((id) => id !== postId) : [...prev, postId]
+    );
+    try {
+      const postRef = doc(db, "posts", postId);
+      const userRef = doc(db, "users", user.uid);
+      await Promise.all([
+        updateDoc(postRef, { likes: increment(isLiked ? -1 : 1) }),
+        updateDoc(userRef, {
+          likedPosts: isLiked ? arrayRemove(postId) : arrayUnion(postId),
+        }),
+      ]);
+    } catch (err) {
       setPosts((prevPosts) =>
         prevPosts.map((post) =>
           post.id === postId
-            ? { ...post, likes: (post.likes || 0) + (isLiked ? -1 : 1) }
+            ? { ...post, likes: (post.likes || 0) + (isLiked ? 1 : -1) }
+            : post
+        )
+      );
+      setFollowingPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post.id === postId
+            ? { ...post, likes: (post.likes || 0) + (isLiked ? 1 : -1) }
             : post
         )
       );
       setLikedPosts((prev) =>
-        isLiked ? prev.filter((id) => id !== postId) : [...prev, postId]
+        isLiked ? [...prev, postId] : prev.filter((id) => id !== postId)
       );
-      try {
-        const postRef = doc(db, "posts", postId);
-        const userRef = doc(db, "users", user.uid);
-        await Promise.all([
-          updateDoc(postRef, { likes: increment(isLiked ? -1 : 1) }),
-          updateDoc(userRef, {
-            likedPosts: isLiked ? arrayRemove(postId) : arrayUnion(postId),
-          }),
-        ]);
-      } catch (err) {
-        setPosts((prevPosts) =>
-          prevPosts.map((post) =>
-            post.id === postId
-              ? { ...post, likes: (post.likes || 0) + (isLiked ? 1 : -1) }
-              : post
-          )
-        );
-        setLikedPosts((prev) =>
-          isLiked ? [...prev, postId] : prev.filter((id) => id !== postId)
-        );
-        alert("Failed to update like. Please try again later.");
-      }
-    },
-    [user]
-  );
+      alert("Failed to update like. Please try again later.");
+    }
+  };
 
   // Helper for pretty date
   const prettyDate = (publishedAt) => {
@@ -281,9 +385,29 @@ const DashboardPage = () => {
   const handleRemovePost = async (postId) => {
     if (!window.confirm("Are you sure you want to remove this post?")) return;
     try {
+      setLoading(true);
       await deleteDoc(doc(db, "posts", postId));
       setPosts((prev) => prev.filter((p) => p.id !== postId));
+      setFollowingPosts((prev) => prev.filter((p) => p.id !== postId));
+      setMenuOpen((prev) => {
+        const copy = { ...prev };
+        delete copy[postId];
+        return copy;
+      });
+      // Remove from session storage
+      const cached = sessionStorage.getItem("postsWindow");
+      if (cached) {
+        const { posts, lastVisible } = JSON.parse(cached);
+        const updatedPosts = posts.filter((p) => p.id !== postId);
+        sessionStorage.setItem(
+          "postsWindow",
+          JSON.stringify({ posts: updatedPosts, lastVisible })
+        );
+      }
+      setLoading(false);
+      alert("Post removed successfully");
     } catch (err) {
+      setLoading(false);
       alert("Failed to remove post. Please try again.");
     }
   };
@@ -291,7 +415,11 @@ const DashboardPage = () => {
   return (
     <div style={{ display: "flex", height: "100vh" }}>
       {/* Sidebar */}
-      <Sidebar userProfile={userProfile} sidebarOpen={sidebarOpen} />
+      <Sidebar
+        userProfile={userProfile}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+      />
       {/* Main Content */}
       <main
         className={styles.mainContent}
@@ -393,137 +521,232 @@ const DashboardPage = () => {
             className={styles.feed}
             ref={feedRef}
             style={{
-              display: activeTab === "for-you" ? "flex" : "none",
+              display: "flex",
               flex: 1,
               overflowY: "auto",
               paddingBottom: 0,
             }}
           >
-            {filteredPosts.length === 0 ? (
-              <div
-                style={{ textAlign: "center", color: "#888", marginTop: 40 }}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25 }}
+                style={{ width: "100%" }}
               >
-                No posts found.
-              </div>
-            ) : (
-              filteredPosts.map((post) => {
-                const isLiked = likedPosts.includes(post.id);
-                const authorFullName =
-                  authorNames[post.username] || post.username || "Unknown";
-                let imageStyle = {
-                  width: "100%",
-                  display: "block",
-                  objectFit: "cover",
-                  borderRadius: "8px",
-                  marginBottom: "10px",
-                };
-                const hasImage = Boolean(post.photoURL);
-                const isOwnPost =
-                  userProfile && post.username === userProfile.username;
-                return (
+                {filteredPosts.length === 0 ? (
                   <div
-                    key={post.id}
-                    className={styles.post}
-                    style={{ position: "relative" }}
+                    style={{
+                      textAlign: "center",
+                      color: "#888",
+                      marginTop: 40,
+                      width: "100%",
+                    }}
                   >
-                    {/* Three dots menu for own posts */}
-                    {isOwnPost && (
+                    {activeTab === "following" &&
+                    followingUsernames.length === 0
+                      ? "You haven't followed anyone yet. Follow users to see their posts here."
+                      : "No posts found."}
+                  </div>
+                ) : (
+                  filteredPosts.map((post) => {
+                    const isLiked = likedPosts.includes(post.id);
+                    const authorFullName =
+                      authorNames[post.username] || post.username || "Unknown";
+                    let imageStyle = {
+                      width: "100%",
+                      display: "block",
+                      objectFit: "cover",
+                      borderRadius: "8px",
+                      marginBottom: "10px",
+                    };
+                    const hasImage = Boolean(post.photoURL);
+                    const isOwnPost =
+                      userProfile && post.username === userProfile.username;
+                    const isExpanded = expandedPosts[post.id];
+                    return (
                       <div
-                        style={{
-                          position: "absolute",
-                          top: 10,
-                          right: 10,
-                          zIndex: 2,
-                        }}
+                        key={post.id}
+                        className={styles.post}
+                        style={{ position: "relative" }}
                       >
-                        <button
-                          className={styles.dotsButton}
-                          onClick={() => handleMenuToggle(post.id)}
-                          aria-label="Post options"
-                        >
-                          ⋮
-                        </button>
-                        {menuOpen[post.id] && (
-                          <div className={styles.postMenuDropdown}>
-                            <button onClick={() => alert("Edit coming soon!")}>
-                              Edit
+                        {/* Three dots menu for own posts */}
+                        {isOwnPost && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: 10,
+                              right: 10,
+                              zIndex: 2,
+                            }}
+                          >
+                            <button
+                              className={styles.dotsButton}
+                              onClick={() => handleMenuToggle(post.id)}
+                              aria-label="Post options"
+                            >
+                              ⋮
                             </button>
-                            <button onClick={() => handleRemovePost(post.id)}>
-                              Remove
-                            </button>
+                            {menuOpen[post.id] && (
+                              <div className={styles.postMenuDropdown}>
+                                <button
+                                  onClick={() => alert("Edit coming soon!")}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleRemovePost(post.id)}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
-                      </div>
-                    )}
-                    {/* Article-style title on top */}
-                    <div className={styles.articleTitle}>{post.title}</div>
-                    {/* Image (if present) */}
-                    {hasImage && (
-                      <div className={styles.imageWrapper}>
-                        <img
-                          className={styles.postImage}
-                          src={post.photoURL}
-                          alt="Post"
-                          style={imageStyle}
-                          loading="lazy"
-                        />
-                      </div>
-                    )}
-                    {/* Article-style text content */}
-                    {post.text && (
-                      <div
-                        className={styles.articleText}
-                        dangerouslySetInnerHTML={{ __html: post.text }}
-                      />
-                    )}
-                    {/* Author/date/like row for all posts */}
-                    <div
-                      className={
-                        styles.postFooterIG + " " + styles.textOnlyFooter
-                      }
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                        }}
-                      >
-                        <span className={styles.authorNameIG}>
-                          {authorFullName}
-                        </span>
-                        <span className={styles.postDateIG}>
-                          {prettyDate(post.publishedAt)}
-                        </span>
-                      </div>
-                      <span
-                        className={styles.likesRow}
-                        style={{ marginLeft: "auto" }}
-                      >
-                        <button
+                        {/* Article-style title on top */}
+                        <div className={styles.articleTitle}>{post.title}</div>
+                        {/* Image (if present) */}
+                        {hasImage && (
+                          <div className={styles.imageWrapper}>
+                            <img
+                              className={styles.postImage}
+                              src={post.photoURL}
+                              alt="Post"
+                              style={imageStyle}
+                              loading="lazy"
+                              decoding="async"
+                              width={600}
+                              height={340}
+                              srcSet={
+                                post.photoURL
+                                  ? `${
+                                      post.photoURL
+                                    } 1x, ${post.photoURL.replace(
+                                      "/upload/",
+                                      "/upload/w_1200/"
+                                    )} 2x`
+                                  : undefined
+                              }
+                            />
+                          </div>
+                        )}
+                        {/* Article-style text content with collapse/expand */}
+                        {post.text && (
+                          <>
+                            <div
+                              className={
+                                styles.articleText +
+                                (!isExpanded ? " " + styles.collapsedText : "")
+                              }
+                              dangerouslySetInnerHTML={{ __html: post.text }}
+                              style={
+                                !isExpanded
+                                  ? {
+                                      maxHeight: "5.8em", // ~4 lines at 1.45em line-height
+                                      overflow: "hidden",
+                                      position: "relative",
+                                      WebkitLineClamp: 4,
+                                      display: "-webkit-box",
+                                      WebkitBoxOrient: "vertical",
+                                    }
+                                  : {}
+                              }
+                            />
+                            {/* Show more/less button if text is long */}
+                            <ShowMoreButton
+                              postId={post.id}
+                              postText={post.text}
+                              isExpanded={isExpanded}
+                              setExpandedPosts={setExpandedPosts}
+                            />
+                          </>
+                        )}
+                        {/* Author/date/like row for all posts */}
+                        <div
                           className={
-                            styles.likeButton +
-                            (isLiked ? " " + styles.liked : "")
+                            styles.postFooterIG + " " + styles.textOnlyFooter
                           }
-                          onClick={() => handleLike(post.id, isLiked)}
-                          aria-label={isLiked ? "Unlike" : "Like"}
                         >
-                          {isLiked ? "❤️" : "🤍"}
-                        </button>
-                        <span className={styles.likeCount}>
-                          {formatLikesCount(post.likes || 0)}
-                          <span className={styles.likeWord}>
-                            {" "}
-                            {post.likes === 1 ? "like" : "likes"}
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                            }}
+                          >
+                            <img
+                              src={post.authorPhotoURL || PERSON_ICON}
+                              alt={authorFullName}
+                              className={styles.authorAvatar}
+                              width={32}
+                              height={32}
+                              loading="lazy"
+                              decoding="async"
+                              style={{ cursor: "pointer" }}
+                              onClick={() => {
+                                if (
+                                  userProfile &&
+                                  post.username === userProfile.username
+                                ) {
+                                  navigate("/account");
+                                } else {
+                                  navigate(`/user/${post.username}`);
+                                }
+                              }}
+                            />
+                            <span
+                              className={styles.authorNameIG}
+                              onClick={() => {
+                                if (
+                                  userProfile &&
+                                  post.username === userProfile.username
+                                ) {
+                                  navigate("/account");
+                                } else {
+                                  navigate(`/user/${post.username}`);
+                                }
+                              }}
+                              style={{ cursor: "pointer" }}
+                            >
+                              {authorFullName}
+                            </span>
+                            <span className={styles.postDateIG}>
+                              {prettyDate(post.publishedAt)}
+                            </span>
+                          </div>
+                          <span
+                            className={styles.likesRow}
+                            style={{ marginLeft: "auto" }}
+                          >
+                            <button
+                              className={
+                                styles.likeButton +
+                                (isLiked ? " " + styles.liked : "")
+                              }
+                              onClick={() => handleLike(post.id, isLiked)}
+                              aria-label={isLiked ? "Unlike" : "Like"}
+                              disabled={likeLoading[post.id]}
+                            >
+                              {isLiked ? "❤️" : "🤍"}
+                            </button>
+                            <span className={styles.likeCount}>
+                              {formatLikesCount(post.likes || 0)}
+                              <span className={styles.likeWord}>
+                                {" "}
+                                {post.likes === 1 ? "like" : "likes"}
+                              </span>
+                            </span>
                           </span>
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-            <div className={styles.feedSpacer} />
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div className={styles.feedSpacer} />
+              </motion.div>
+            </AnimatePresence>
           </div>
           {/* Floating Action Button (Pencil) */}
           <button
@@ -552,5 +775,54 @@ const DashboardPage = () => {
     </div>
   );
 };
+
+// Helper component for Show More/Less button
+function ShowMoreButton({ postId, postText, isExpanded, setExpandedPosts }) {
+  const [isLong, setIsLong] = useState(false);
+  const ref = useRef();
+  useEffect(() => {
+    if (ref.current) {
+      setIsLong(ref.current.scrollHeight > ref.current.clientHeight + 2);
+    }
+  }, [postText]);
+  // Render hidden div to measure height
+  return (
+    <>
+      <div
+        ref={ref}
+        style={{
+          position: "absolute",
+          visibility: "hidden",
+          height: "auto",
+          maxHeight: "none",
+          overflow: "visible",
+          whiteSpace: "normal",
+          pointerEvents: "none",
+          zIndex: -1,
+          width: "100%",
+        }}
+        dangerouslySetInnerHTML={{ __html: postText }}
+      />
+      {isLong && (
+        <button
+          className={styles.showMoreBtn}
+          onClick={() =>
+            setExpandedPosts((prev) => ({ ...prev, [postId]: !isExpanded }))
+          }
+          style={{
+            marginTop: 4,
+            color: "#344955",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontWeight: 500,
+          }}
+        >
+          {isExpanded ? "Show less" : "Show more"}
+        </button>
+      )}
+    </>
+  );
+}
 
 export default DashboardPage;
