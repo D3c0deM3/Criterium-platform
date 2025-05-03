@@ -282,23 +282,17 @@ const DashboardPage = () => {
       setLoading(false);
     };
     fetchData();
-  }, []);
-
-  // Memoized following posts
-  const filteredFollowingPosts = useMemo(() => {
-    if (
-      posts.length > 0 &&
-      followingUsernames &&
-      followingUsernames.length > 0
-    ) {
-      return posts.filter((post) => followingUsernames.includes(post.username));
-    }
-    return [];
-  }, [posts, followingUsernames]);
+  }, [followingUsernames]);
 
   useEffect(() => {
-    setFollowingPosts(filteredFollowingPosts);
-  }, [filteredFollowingPosts]);
+    if (posts.length > 0 && followingUsernames.length > 0) {
+      setFollowingPosts(
+        posts.filter((post) => followingUsernames.includes(post.username))
+      );
+    } else {
+      setFollowingPosts([]);
+    }
+  }, [posts, followingUsernames]);
 
   const handleTabClick = (tab) => setActiveTab(tab);
 
