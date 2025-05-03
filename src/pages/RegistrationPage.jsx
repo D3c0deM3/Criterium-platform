@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { gsap } from "gsap";
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
 import { auth } from "../firebase";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-analytics.js";
 import styles from "../styles/RegistrationPage.module.css";
 import { useNavigate } from "react-router-dom";
 import { db } from "../firebase";
@@ -13,21 +11,10 @@ import {
   sendEmailVerification,
 } from "firebase/auth";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAtxgJGFhLqCrhyUptk5wkDqM37YUed_vQ",
-  authDomain: "criterium-d1615.firebaseapp.com",
-  projectId: "criterium-d1615",
-  storageBucket: "criterium-d1615.firebasestorage.app",
-  messagingSenderId: "478195768548",
-  appId: "1:478195768548:web:a1c3491ea3ef950045e0f1",
-  measurementId: "G-0SWM8M4VJ3",
-};
-
-const app = initializeApp(firebaseConfig);
-getAnalytics(app);
-
 const RegistrationPage = () => {
-  const [formType, setFormType] = useState("register");
+  const [formType, setFormTypeState] = useState(
+    () => localStorage.getItem("formType") || "register"
+  );
   const [loading, setLoading] = useState(false);
   const registerContainerRef = useRef(null);
   const logoRef = useRef(null);
@@ -240,7 +227,7 @@ const RegistrationPage = () => {
           .then(() => {
             console.log("Verification email sent");
             setFormType("verify");
-            setLoading(false);
+            setTimeout(() => setLoading(false), 100);
           })
           .catch((error) => {
             console.error("Error sending verification email:", error.message);
@@ -312,6 +299,12 @@ const RegistrationPage = () => {
       setFormType("register");
       setLoading(false);
     }
+  };
+
+  // Persist formType in localStorage
+  const setFormType = (type) => {
+    setFormTypeState(type);
+    localStorage.setItem("formType", type);
   };
 
   return (
