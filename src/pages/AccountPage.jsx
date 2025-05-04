@@ -6,7 +6,6 @@ import {
   collection,
   getDocs,
   doc,
-  getDoc,
   query,
   where,
   updateDoc,
@@ -19,15 +18,313 @@ import {
 import { useNavigate } from "react-router-dom";
 import dashboardStyles from "../styles/DashboardPage.module.css";
 import ExpandablePostText from "../components/ExpandablePostText";
+import PostEditor, { Modal } from "../components/PostEditor.jsx";
+import profileStyles from "../styles/ProfilePage.module.css";
 
 const PERSON_ICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E";
 
-// Utility to format like numbers (e.g. 1.1K, 1M)
+const CLOUDINARY_CLOUD_NAME = "dn6uypx98";
+const CLOUDINARY_UPLOAD_PRESET = "profile_pics";
+const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+
+const PencilIcon = (props) => (
+  <svg
+    width="28"
+    height="28"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="#344955"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19.5 3 21l1.5-4L16.5 3.5z" />
+  </svg>
+);
+
+function EditProfileModal({ open, onClose, userProfile, onSave }) {
+  const [profilePic, setProfilePic] = useState(
+    userProfile.photoURL || "https://via.placeholder.com/100"
+  );
+  const [profilePicFile, setProfilePicFile] = useState(null);
+  const [username, setUsername] = useState(userProfile.username || "");
+  const [firstName, setFirstName] = useState(userProfile.firstName || "");
+  const [lastName, setLastName] = useState(userProfile.lastName || "");
+  const [bio, setBio] = useState(userProfile.bio || "");
+  const [loading, setLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState("");
+  const profilePicInputRef = useRef();
+
+  const handleProfilePicClick = () => {
+    profilePicInputRef.current.click();
+  };
+  const handleProfilePicChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setProfilePicFile(file);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setProfilePic(event.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setUsernameError("");
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      alert("No user logged in. Please log in.");
+      return;
+    }
+    const usernameValue = username.trim().startsWith("@")
+      ? username.trim()
+      : `@${username.trim()}`;
+    // Only check username if changed
+    if (usernameValue !== userProfile.username) {
+      try {
+        const usernameQuery = query(
+          collection(db, "users"),
+          where("username", "==", usernameValue)
+        );
+        const usernameSnapshot = await getDocs(usernameQuery);
+        if (!usernameSnapshot.empty) {
+          setUsernameError("Username is already taken.");
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        setUsernameError("Error checking username.");
+        setLoading(false);
+        return;
+      }
+    }
+    // Upload image if present
+    let photoURL = profilePic;
+    if (profilePicFile) {
+      const formData = new FormData();
+      formData.append("file", profilePicFile);
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+      try {
+        const response = await fetch(CLOUDINARY_UPLOAD_URL, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await response.json();
+        if (data.secure_url) {
+          photoURL = data.secure_url;
+        } else {
+          setLoading(false);
+          alert("Error uploading image to Cloudinary.");
+          return;
+        }
+      } catch (error) {
+        setLoading(false);
+        alert("Error uploading picture: " + error.message);
+        return;
+      }
+    }
+    // Save profile
+    try {
+      const userDocRef = doc(db, "users", user.uid);
+      await updateDoc(userDocRef, {
+        username: usernameValue,
+        firstName: firstName.trim(),
+        lastName: lastName.trim() || null,
+        bio: bio.trim() || null,
+        photoURL,
+      });
+      onSave &&
+        onSave({ username: usernameValue, firstName, lastName, bio, photoURL });
+      setLoading(false);
+      onClose();
+    } catch (error) {
+      setLoading(false);
+      alert("Error saving profile: " + error.message);
+    }
+  };
+  if (!open) return null;
+  return (
+    <div
+      className={profileStyles.centerWrapper}
+      style={{ zIndex: 3000, position: "fixed", top: 0, left: 0 }}
+    >
+      <div
+        className={profileStyles.profileContainer}
+        style={{ position: "relative" }}
+      >
+        <h2 className={profileStyles.title}>Edit Profile</h2>
+        <div
+          className={profileStyles.profilePic}
+          onClick={handleProfilePicClick}
+          style={{ margin: "0 auto 1.5rem auto" }}
+        >
+          <img
+            className={profileStyles.profilePicImg}
+            src={profilePic}
+            alt="Profile"
+          />
+          <input
+            type="file"
+            accept="image/*"
+            ref={profilePicInputRef}
+            style={{ display: "none" }}
+            onChange={handleProfilePicChange}
+          />
+        </div>
+        <form onSubmit={handleSubmit}>
+          <input
+            className={profileStyles.profileFormInput}
+            type="text"
+            placeholder="Username (e.g., @markbrown)"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
+          {usernameError && (
+            <div className={profileStyles.errorMessage}>{usernameError}</div>
+          )}
+          <input
+            className={profileStyles.profileFormInput}
+            type="text"
+            placeholder="First Name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            required
+          />
+          <input
+            className={profileStyles.profileFormInput}
+            type="text"
+            placeholder="Last Name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+          />
+          <textarea
+            className={profileStyles.profileFormTextarea}
+            placeholder="Tell us about yourself..."
+            rows={4}
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+          />
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 12,
+              marginTop: 24,
+            }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                background: "#eee",
+                color: "#333",
+                border: "none",
+                borderRadius: 6,
+                padding: "10px 18px",
+                cursor: "pointer",
+              }}
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className={profileStyles.saveBtn}
+              style={{ width: "auto", minWidth: 90 }}
+              disabled={loading}
+            >
+              {loading ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </form>
+        {loading && (
+          <div className={profileStyles.loadingOverlay}>
+            <div className={profileStyles.spinner}></div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function formatLikesCount(num) {
   if (num >= 1e6) return (num / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
   if (num >= 1e3) return (num / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
   return num;
+}
+
+function normalizeText(text) {
+  return text
+    .toLowerCase()
+    .replace(/[1!|il]/g, "i")
+    .replace(/[@]/g, "a")
+    .replace(/[$]/g, "s")
+    .replace(/[0]/g, "o")
+    .replace(/3/g, "e")
+    .replace(/4/g, "a")
+    .replace(/5/g, "s")
+    .replace(/7/g, "t")
+    .replace(/8/g, "b")
+    .replace(/9/g, "g")
+    .replace(/\*/g, "")
+    .replace(/\./g, "")
+    .replace(/_/g, "")
+    .replace(/-/g, "")
+    .replace(/\s+/g, "");
+}
+
+function containsBannedWords(text) {
+  const banned = [
+    /\bsex\b/i,
+    /\bfuck\b/i,
+    /\bnigg[ae]r\b/i,
+    /\bass\b/i,
+    /\bshit\b/i,
+    /\bcum\b/i,
+    /\bporn\b/i,
+    /\bdick\b/i,
+    /\bpussy\b/i,
+    /\bcock\b/i,
+    /\bslut\b/i,
+    /\bwhore\b/i,
+    /\bfag\b/i,
+    /\bretard\b/i,
+    /\bcunt\b/i,
+    /\bpenis\b/i,
+    /\bvagina\b/i,
+    /\btits?\b/i,
+    /\bboobs?\b/i,
+    /\banal\b/i,
+    /\brape\b/i,
+    /\bincest\b/i,
+    /\bmolest\b/i,
+    /\bkill\b/i,
+    /\bmurder\b/i,
+    /\bsuicide\b/i,
+    /\bterrorist?\b/i,
+    /\bisis\b/i,
+    /\bjihad\b/i,
+    /\bblowjob\b/i,
+    /\bhandjob\b/i,
+    /\borgy\b/i,
+    /\bgangbang\b/i,
+    /\bpaedophile\b/i,
+    /\bpedophile\b/i,
+    /\bchild\s*abuse\b/i,
+    /\bzoophilia\b/i,
+    /\bbeastiality\b/i,
+    /\bnecrophilia\b/i,
+    /\bbestiality\b/i,
+  ];
+  const norm = normalizeText(text);
+  return banned.some((re) => re.test(norm));
 }
 
 const AccountPage = () => {
@@ -39,6 +336,9 @@ const AccountPage = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState({});
   const [expandedPosts, setExpandedPosts] = useState({});
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [editModalPost, setEditModalPost] = useState(null);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
   const navigate = useNavigate();
   const menuRefs = useRef({});
 
@@ -166,6 +466,55 @@ const AccountPage = () => {
     }
   };
 
+  // Handle post update
+  const handleEditSave = async (postId, updated) => {
+    setSubmittingEdit(true);
+    try {
+      const plainText =
+        updated.title + "\n" + updated.text.replace(/<[^>]+>/g, "");
+      // Check both title and content for banned words
+      if (
+        containsBannedWords(updated.title) ||
+        containsBannedWords(updated.text.replace(/<[^>]+>/g, ""))
+      ) {
+        alert(
+          "Your post contains inappropriate or banned words. Please revise and try again."
+        );
+        setSubmittingEdit(false);
+        return;
+      }
+      // Moderation check (stricter)
+      const moderationRes = await fetch(
+        "https://content-moderation-server.onrender.com/moderate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: plainText + "\n" + normalizeText(plainText),
+          }),
+        }
+      );
+      const moderationData = await moderationRes.json();
+      if (moderationData.flagged) {
+        alert(
+          "Your post contains content that is not allowed (politically sensitive or inappropriate). Please revise and try again."
+        );
+        setSubmittingEdit(false);
+        return;
+      }
+      await updateDoc(doc(db, "posts", postId), {
+        title: updated.title,
+        text: updated.text,
+        photoURL: updated.photoURL || null,
+      });
+      setEditModalPost(null);
+    } catch (err) {
+      alert("Failed to update post. Please try again.");
+    } finally {
+      setSubmittingEdit(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -207,7 +556,31 @@ const AccountPage = () => {
             <span></span>
           </div>
         </div>
-        <div className={styles.accountHeader}>
+        <div className={styles.accountHeader} style={{ position: "relative" }}>
+          {/* Edit icon in top left above profile photo */}
+          <button
+            type="button"
+            title="Edit profile"
+            style={{
+              position: "absolute",
+              left: 8,
+              top: 8,
+              background: "#f8f9fa",
+              border: "none",
+              borderRadius: "50%",
+              padding: 6,
+              cursor: "pointer",
+              zIndex: 10,
+              boxShadow: "0 1px 4px rgba(52,73,85,0.08)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            onClick={() => setEditProfileOpen(true)}
+            aria-label="Edit profile"
+          >
+            <PencilIcon />
+          </button>
           <div className={styles.profilePicWrapper}>
             <img
               src={userProfile.photoURL || PERSON_ICON}
@@ -251,120 +624,150 @@ const AccountPage = () => {
                 const isLiked = likedPosts.includes(post.id);
                 const hasImage = Boolean(post.photoURL);
                 return (
-                  <div key={post.id} className={styles.postCard}>
-                    {/* Row with title and 3-dot menu */}
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        width: "100%",
-                        minHeight: 32,
-                      }}
-                    >
-                      <div className={styles.postTitle} style={{ margin: 0 }}>
-                        {post.title}
-                      </div>
+                  <React.Fragment key={post.id}>
+                    <div key={post.id} className={styles.postCard}>
+                      {/* Row with title and 3-dot menu */}
                       <div
-                        className={styles.postOptionsMenu}
-                        ref={(el) => (menuRefs.current[post.id] = el)}
-                        style={{ position: "relative", top: 0, right: 0 }}
-                      >
-                        <button
-                          className={styles.dotsButton}
-                          onClick={() => handleMenuToggle(post.id)}
-                          aria-label="Post options"
-                        >
-                          ⋮
-                        </button>
-                        {menuOpen[post.id] && (
-                          <div className={styles.postMenuDropdown}>
-                            <button onClick={() => alert("Edit coming soon!")}>
-                              Edit
-                            </button>
-                            <button onClick={() => handleRemovePost(post.id)}>
-                              Remove
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {hasImage && (
-                      <div className={dashboardStyles.imageWrapper}>
-                        <img
-                          className={dashboardStyles.postImage}
-                          src={post.photoURL}
-                          alt={post.title}
-                          loading="lazy"
-                          decoding="async"
-                          width={600}
-                          height={340}
-                          srcSet={
-                            post.photoURL
-                              ? `${post.photoURL} 1x, ${post.photoURL.replace(
-                                  "/upload/",
-                                  "/upload/w_1200/"
-                                )} 2x`
-                              : undefined
-                          }
-                          style={{ cursor: "pointer" }}
-                          onClick={() => {
-                            if (
-                              userProfile &&
-                              post.username === userProfile.username
-                            ) {
-                              navigate("/account");
-                            } else {
-                              navigate(`/user/${post.username}`);
-                            }
-                          }}
-                        />
-                      </div>
-                    )}
-                    <div className={styles.postContent}>
-                      <ExpandablePostText
-                        html={post.text}
-                        expanded={!!expandedPosts[post.id]}
-                        onToggle={() =>
-                          setExpandedPosts((prev) => ({
-                            ...prev,
-                            [post.id]: !prev[post.id],
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className={styles.postMetaRow}>
-                      <button
-                        className={
-                          styles.likeButton +
-                          (isLiked ? " " + styles.liked : "")
-                        }
-                        onClick={() => handleLike(post.id, isLiked)}
-                        aria-label={isLiked ? "Unlike" : "Like"}
                         style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          width: "100%",
+                          minHeight: 32,
                         }}
                       >
-                        {isLiked ? "❤️" : "🤍"}{" "}
-                        {formatLikesCount(post.likes || 0)}
-                      </button>
-                      <span className={styles.dateMeta}>
-                        {post.publishedAt?.seconds
-                          ? new Date(
-                              post.publishedAt.seconds * 1000
-                            ).toLocaleDateString()
-                          : ""}
-                      </span>
+                        <div className={styles.postTitle} style={{ margin: 0 }}>
+                          {post.title}
+                        </div>
+                        <div
+                          className={styles.postOptionsMenu}
+                          ref={(el) => (menuRefs.current[post.id] = el)}
+                          style={{ position: "relative", top: 0, right: 0 }}
+                        >
+                          <button
+                            className={styles.dotsButton}
+                            onClick={() => handleMenuToggle(post.id)}
+                            aria-label="Post options"
+                          >
+                            ⋮
+                          </button>
+                          {menuOpen[post.id] && (
+                            <div className={styles.postMenuDropdown}>
+                              <button
+                                onClick={() => {
+                                  setEditModalPost(post);
+                                  setMenuOpen({});
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button onClick={() => handleRemovePost(post.id)}>
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {hasImage && (
+                        <div className={dashboardStyles.imageWrapper}>
+                          <img
+                            className={dashboardStyles.postImage}
+                            src={post.photoURL}
+                            alt={post.title}
+                            loading="lazy"
+                            decoding="async"
+                            width={600}
+                            height={340}
+                            srcSet={
+                              post.photoURL
+                                ? `${post.photoURL} 1x, ${post.photoURL.replace(
+                                    "/upload/",
+                                    "/upload/w_1200/"
+                                  )} 2x`
+                                : undefined
+                            }
+                            style={{ cursor: "pointer" }}
+                            onClick={() => {
+                              if (
+                                userProfile &&
+                                post.username === userProfile.username
+                              ) {
+                                navigate("/account");
+                              } else {
+                                navigate(`/user/${post.username}`);
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+                      <div className={styles.postContent}>
+                        <ExpandablePostText
+                          html={post.text}
+                          expanded={!!expandedPosts[post.id]}
+                          onToggle={() =>
+                            setExpandedPosts((prev) => ({
+                              ...prev,
+                              [post.id]: !prev[post.id],
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className={styles.postMetaRow}>
+                        <button
+                          className={
+                            styles.likeButton +
+                            (isLiked ? " " + styles.liked : "")
+                          }
+                          onClick={() => handleLike(post.id, isLiked)}
+                          aria-label={isLiked ? "Unlike" : "Like"}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        >
+                          {isLiked ? "❤️" : "🤍"}{" "}
+                          {formatLikesCount(post.likes || 0)}
+                        </button>
+                        <span className={styles.dateMeta}>
+                          {post.publishedAt?.seconds
+                            ? new Date(
+                                post.publishedAt.seconds * 1000
+                              ).toLocaleDateString()
+                            : ""}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                    {editModalPost && editModalPost.id === post.id && (
+                      <Modal open={true} onClose={() => setEditModalPost(null)}>
+                        <PostEditor
+                          initialTitle={editModalPost.title}
+                          initialContent={editModalPost.text}
+                          initialImage={editModalPost.photoURL}
+                          submitting={submittingEdit}
+                          onSave={(updated) =>
+                            handleEditSave(editModalPost.id, updated)
+                          }
+                          onCancel={() => setEditModalPost(null)}
+                        />
+                      </Modal>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </div>
           )}
         </div>
+        <EditProfileModal
+          open={editProfileOpen}
+          onClose={() => setEditProfileOpen(false)}
+          userProfile={userProfile}
+          onSave={(updated) => {
+            // Optionally update local state if needed
+            setUserProfile((prev) => ({ ...prev, ...updated }));
+          }}
+        />
       </main>
     </div>
   );

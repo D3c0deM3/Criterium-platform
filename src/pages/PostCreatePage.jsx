@@ -6,6 +6,200 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import Sidebar from "./Sidebar";
 import { CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "../constants";
 
+function normalizeText(text) {
+  return text
+    .toLowerCase()
+    .replace(/[1!|il]/g, "i")
+    .replace(/[@]/g, "a")
+    .replace(/[$]/g, "s")
+    .replace(/[0]/g, "o")
+    .replace(/3/g, "e")
+    .replace(/4/g, "a")
+    .replace(/5/g, "s")
+    .replace(/7/g, "t")
+    .replace(/8/g, "b")
+    .replace(/9/g, "g")
+    .replace(/\*/g, "")
+    .replace(/\./g, "")
+    .replace(/_/g, "")
+    .replace(/-/g, "")
+    .replace(/\s+/g, ""); // Remove spaces for stricter matching
+}
+
+function containsBannedWords(text) {
+  const banned = [
+    /\bsex\b/i,
+    /\bfuck\b/i,
+    /\bnigg[ae]r\b/i,
+    /\bass\b/i,
+    /\bshit\b/i,
+    /\bcum\b/i,
+    /\bporn\b/i,
+    /\bdick\b/i,
+    /\bpussy\b/i,
+    /\bcock\b/i,
+    /\bslut\b/i,
+    /\bwhore\b/i,
+    /\bfag\b/i,
+    /\bretard\b/i,
+    /\bcunt\b/i,
+    /\bpenis\b/i,
+    /\bvagina\b/i,
+    /\btits?\b/i,
+    /\bboobs?\b/i,
+    /\banal\b/i,
+    /\brape\b/i,
+    /\bincest\b/i,
+    /\bmolest\b/i,
+    /\bkill\b/i,
+    /\bmurder\b/i,
+    /\bsuicide\b/i,
+    /\bterrorist?\b/i,
+    /\bisis\b/i,
+    /\bjihad\b/i,
+    /\bblowjob\b/i,
+    /\bhandjob\b/i,
+    /\borgy\b/i,
+    /\bgangbang\b/i,
+    /\bpaedophile\b/i,
+    /\bpedophile\b/i,
+    /\bchild\s*abuse\b/i,
+    /\bzoophilia\b/i,
+    /\bbeastiality\b/i,
+    /\bnecrophilia\b/i,
+    /\bbestiality\b/i,
+    /\bqueer\b/i,
+    /\bslur\b/i,
+    /\blynch\b/i,
+    /\bgenocide\b/i,
+    /\bholocaust\b/i,
+    /\bshoot\b/i,
+    /\bstab\b/i,
+    /\bgun\b/i,
+    /\bweapon\b/i,
+    /\bexplosive\b/i,
+    /\bbomb\b/i,
+    /\bexecute\b/i,
+    /\bhang\b/i,
+    /\bpoison\b/i,
+    /\bselfharm\b/i,
+    /\bcutting\b/i,
+    /\bselfmutilation\b/i,
+    /\baddict\b/i,
+    /\bdrugs?\b/i,
+    /\bheroin\b/i,
+    /\bcocaine\b/i,
+    /\bcrack\b/i,
+    /\bmeth\b/i,
+    /\bweed\b/i,
+    /\bmarijuana\b/i,
+    /\bopium\b/i,
+    /\bhash\b/i,
+    /\bthc\b/i,
+    /\bmdma\b/i,
+    /\becstasy\b/i,
+    /\bshrooms?\b/i,
+    /\bpsychedelic\b/i,
+    /\btrippy\b/i,
+    /\bped0\b/i,
+    /\bpedo\b/i,
+    /\bpaedo\b/i,
+    /\bpaed0\b/i,
+    /\bmolester\b/i,
+    /\bchildporn\b/i,
+    /\bcp\b/i,
+    /\bzoophile\b/i,
+    /\bbeastial\b/i,
+    /\bnecrophile\b/i,
+    /\binc3st\b/i,
+    /\binc3st\b/i,
+    /\bterror\b/i,
+    /\bextremist\b/i,
+    /\bwhitepower\b/i,
+    /\bkkk\b/i,
+    /\bklan\b/i,
+    /\bwhitepride\b/i,
+    /\bwhitesupremacy\b/i,
+    /\bblacksupremacy\b/i,
+    /\bantisemitic\b/i,
+    /\bzionist\b/i,
+    /\bzionism\b/i,
+    /\bnazi\b/i,
+    /\bhitler\b/i,
+    /\bsemen\b/i,
+    /\bsp3rm\b/i,
+    /\bsperm\b/i,
+    /\btesticle\b/i,
+    /\bscrotum\b/i,
+    /\bforeskin\b/i,
+    /\banus\b/i,
+    /\brectum\b/i,
+    /\bprostitute\b/i,
+    /\bescort\b/i,
+    /\bstripper\b/i,
+    /\bstripclub\b/i,
+    /\bwh0re\b/i,
+    /\bwh0r3\b/i,
+    /\bbiatch\b/i,
+    /\bbitch\b/i,
+    /\bhoe\b/i,
+    /\bho\b/i,
+    /\btranny\b/i,
+    /\btranssexual\b/i,
+    /\btransgender\b/i,
+    /\bdyke\b/i,
+    /\bspic\b/i,
+    /\bkike\b/i,
+    /\bchink\b/i,
+    /\bgook\b/i,
+    /\bjap\b/i,
+    /\bwetback\b/i,
+    /\bbeaner\b/i,
+    /\bcoon\b/i,
+    /\bspook\b/i,
+    /\bporchmonkey\b/i,
+    /\btowelhead\b/i,
+    /\bsandnigger\b/i,
+    /\braghead\b/i,
+    /\bcameljockey\b/i,
+    /\bgypsy\b/i,
+    /\bretarded\b/i,
+    /\bcripple\b/i,
+    /\bspaz\b/i,
+    /\bspastic\b/i,
+    /\bautist\b/i,
+    /\bautistic\b/i,
+    /\bmidget\b/i,
+    /\bdwarf\b/i,
+    /\bhermaphrodite\b/i,
+    /\bintersex\b/i,
+    /\bdownsyndrome\b/i,
+    /\bspina\b/i,
+    /\bbastard\b/i,
+    /\bslant\b/i,
+    /\bcrip\b/i,
+    /\bcrips\b/i,
+    /\bbloods\b/i,
+    /\bgang\b/i,
+    /\bmafia\b/i,
+    /\bcartel\b/i,
+    /\bsyndicate\b/i,
+    /\bextort\b/i,
+    /\bblackmail\b/i,
+    /\bbribe\b/i,
+    /\bcorrupt\b/i,
+    /\bscam\b/i,
+    /\bfraud\b/i,
+    /\bcheat\b/i,
+    /\bembezzle\b/i,
+    /\bforgery\b/i,
+    /\bplagiarize\b/i,
+    /\bplagiarism\b/i,
+  ];
+  const norm = normalizeText(text);
+  return banned.some((re) => re.test(norm));
+}
+
 const PostCreatePage = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -80,12 +274,43 @@ const PostCreatePage = () => {
 
   const handlePublish = async (e) => {
     e.preventDefault();
+    const plainText = title + "\n" + contentEditableRef.current.innerText;
     if (!title.trim() || !contentEditableRef.current.innerText.trim()) {
       alert("Please enter both a title and content for your post.");
       return;
     }
+    // Check both title and content for banned words
+    if (
+      containsBannedWords(title) ||
+      containsBannedWords(contentEditableRef.current.innerText)
+    ) {
+      alert(
+        "Your post contains inappropriate or banned words. Please revise and try again."
+      );
+      return;
+    }
     setSubmitting(true);
     try {
+      // Moderation check (stricter)
+      const moderationRes = await fetch(
+        "https://content-moderation-server.onrender.com/moderate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: plainText + "\n" + normalizeText(plainText),
+          }),
+        }
+      );
+      const moderationData = await moderationRes.json();
+      if (moderationData.flagged) {
+        alert(
+          "Your post contains content that is not allowed (politically sensitive or inappropriate). Please revise and try again."
+        );
+        setSubmitting(false);
+        return;
+      }
+
       const user = auth.currentUser;
       const userDoc = await getDoc(doc(db, "users", user.uid));
       const userData = userDoc.data();

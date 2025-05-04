@@ -33,7 +33,6 @@ export default function ExpandablePostText({ html, expanded, onToggle }) {
           <div
             style={{
               position: "absolute",
-              right: 0,
               bottom: 0,
               height: "1.8em",
               width: "8.5em",
@@ -48,7 +47,6 @@ export default function ExpandablePostText({ html, expanded, onToggle }) {
           <div
             style={{
               position: "absolute",
-              right: 0,
               bottom: 0,
               background: "#fff",
               fontSize: "0.95em",
@@ -61,7 +59,6 @@ export default function ExpandablePostText({ html, expanded, onToggle }) {
               display: "inline-block",
               boxShadow: "0 0 0 2px #fff, 0 0 8px 4px #fff",
               textAlign: "right",
-              right: 0,
               left: "auto",
               marginLeft: "auto",
               marginRight: 0,

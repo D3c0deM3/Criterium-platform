@@ -21,6 +21,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import { motion, AnimatePresence } from "framer-motion";
+import PostEditor, { Modal } from "../components/PostEditor.jsx";
 
 const POSTS_PAGE_SIZE = 15;
 
@@ -99,6 +100,73 @@ const LikeButton = React.memo(function LikeButton({
   );
 });
 
+function normalizeText(text) {
+  return text
+    .toLowerCase()
+    .replace(/[1!|il]/g, "i")
+    .replace(/[@]/g, "a")
+    .replace(/[$]/g, "s")
+    .replace(/[0]/g, "o")
+    .replace(/3/g, "e")
+    .replace(/4/g, "a")
+    .replace(/5/g, "s")
+    .replace(/7/g, "t")
+    .replace(/8/g, "b")
+    .replace(/9/g, "g")
+    .replace(/\*/g, "")
+    .replace(/\./g, "")
+    .replace(/_/g, "")
+    .replace(/-/g, "")
+    .replace(/\s+/g, "");
+}
+
+function containsBannedWords(text) {
+  const banned = [
+    /\bsex\b/i,
+    /\bfuck\b/i,
+    /\bnigg[ae]r\b/i,
+    /\bass\b/i,
+    /\bshit\b/i,
+    /\bcum\b/i,
+    /\bporn\b/i,
+    /\bdick\b/i,
+    /\bpussy\b/i,
+    /\bcock\b/i,
+    /\bslut\b/i,
+    /\bwhore\b/i,
+    /\bfag\b/i,
+    /\bretard\b/i,
+    /\bcunt\b/i,
+    /\bpenis\b/i,
+    /\bvagina\b/i,
+    /\btits?\b/i,
+    /\bboobs?\b/i,
+    /\banal\b/i,
+    /\brape\b/i,
+    /\bincest\b/i,
+    /\bmolest\b/i,
+    /\bkill\b/i,
+    /\bmurder\b/i,
+    /\bsuicide\b/i,
+    /\bterrorist?\b/i,
+    /\bisis\b/i,
+    /\bjihad\b/i,
+    /\bblowjob\b/i,
+    /\bhandjob\b/i,
+    /\borgy\b/i,
+    /\bgangbang\b/i,
+    /\bpaedophile\b/i,
+    /\bpedophile\b/i,
+    /\bchild\s*abuse\b/i,
+    /\bzoophilia\b/i,
+    /\bbeastiality\b/i,
+    /\bnecrophilia\b/i,
+    /\bbestiality\b/i,
+  ];
+  const norm = normalizeText(text);
+  return banned.some((re) => re.test(norm));
+}
+
 const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -122,6 +190,8 @@ const DashboardPage = () => {
   const [allUsers, setAllUsers] = useState([]); // Store all users for @ search
   const [filteredUsers, setFilteredUsers] = useState([]); // Users matching @ search
   const [expandedPosts, setExpandedPosts] = useState({}); // Track expanded/collapsed state
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [editModalPost, setEditModalPost] = useState(null);
 
   useEffect(() => {
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
@@ -435,6 +505,54 @@ const DashboardPage = () => {
     }
   };
 
+  const handleEditSave = async (postId, updated) => {
+    setSubmittingEdit(true);
+    try {
+      const plainText =
+        updated.title + "\n" + updated.text.replace(/<[^>]+>/g, "");
+      // Check both title and content for banned words
+      if (
+        containsBannedWords(updated.title) ||
+        containsBannedWords(updated.text.replace(/<[^>]+>/g, ""))
+      ) {
+        alert(
+          "Your post contains inappropriate or banned words. Please revise and try again."
+        );
+        setSubmittingEdit(false);
+        return;
+      }
+      // Moderation check (stricter)
+      const moderationRes = await fetch(
+        "https://content-moderation-server.onrender.com/moderate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: plainText + "\n" + normalizeText(plainText),
+          }),
+        }
+      );
+      const moderationData = await moderationRes.json();
+      if (moderationData.flagged) {
+        alert(
+          "Your post contains content that is not allowed (politically sensitive or inappropriate). Please revise and try again."
+        );
+        setSubmittingEdit(false);
+        return;
+      }
+      await updateDoc(doc(db, "posts", postId), {
+        title: updated.title,
+        text: updated.text,
+        photoURL: updated.photoURL || null,
+      });
+      setEditModalPost(null);
+    } catch (err) {
+      alert("Failed to update post. Please try again.");
+    } finally {
+      setSubmittingEdit(false);
+    }
+  };
+
   const prettyDate = (publishedAt) => {
     if (!publishedAt) return "";
     let dateObj;
@@ -453,12 +571,6 @@ const DashboardPage = () => {
       day: "numeric",
       year: "numeric",
     });
-  };
-
-  const formatLikesCount = (num) => {
-    if (num >= 1e6) return (num / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
-    if (num >= 1e3) return (num / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
-    return num;
   };
 
   const handleMenuToggle = (postId) => {
@@ -723,258 +835,285 @@ const DashboardPage = () => {
                       const isOwnPost =
                         userProfile && post.username === userProfile.username;
                       return (
-                        <div
-                          key={post.id}
-                          className={styles.post}
-                          style={{ position: "relative" }}
-                        >
-                          {isOwnPost && (
-                            <div
-                              style={{
-                                position: "absolute",
-                                top: 10,
-                                right: 10,
-                                zIndex: 2,
-                              }}
-                              ref={(el) => (menuRefs.current[post.id] = el)}
-                            >
-                              <button
-                                className={styles.dotsButton}
-                                onClick={() => handleMenuToggle(post.id)}
-                                aria-label="Post options"
-                              >
-                                ⋮
-                              </button>
-                              {menuOpen[post.id] && (
-                                <div className={styles.postMenuDropdown}>
-                                  <button
-                                    onClick={() => alert("Edit coming soon!")}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => handleRemovePost(post.id)}
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          <div className={styles.articleTitle}>
-                            {post.title}
-                          </div>
-                          {hasImage && (
-                            <div className={styles.imageWrapper}>
-                              <img
-                                className={styles.postImage}
-                                src={post.photoURL}
-                                alt="Post"
-                                style={imageStyle}
-                                loading="lazy"
-                                decoding="async"
-                                width={600}
-                                height={340}
-                                srcSet={
-                                  post.photoURL
-                                    ? `${
-                                        post.photoURL
-                                      } 1x, ${post.photoURL.replace(
-                                        "/upload/",
-                                        "/upload/w_1200/"
-                                      )} 2x`
-                                    : undefined
-                                }
-                              />
-                            </div>
-                          )}
-                          {post.text && (
-                            <div style={{ position: "relative" }}>
+                        <React.Fragment key={post.id}>
+                          <div
+                            key={post.id}
+                            className={styles.post}
+                            style={{ position: "relative" }}
+                          >
+                            {isOwnPost && (
                               <div
-                                className={
-                                  styles.articleText +
-                                  (expandedPosts[post.id]
-                                    ? " " + styles.articleTextExpanded
-                                    : "")
-                                }
-                                style={
-                                  expandedPosts[post.id]
-                                    ? {
-                                        display: "block",
-                                        whiteSpace: "pre-line",
-                                        overflow: "visible",
-                                        WebkitLineClamp: "unset",
-                                        maxHeight: "none",
-                                      }
-                                    : {}
-                                }
-                                dangerouslySetInnerHTML={{ __html: post.text }}
-                              />
-                              {!expandedPosts[post.id] &&
-                                isTextLong(post.text) && (
-                                  <>
-                                    <div
-                                      style={{
-                                        position: "absolute",
-                                        right: 0,
-                                        bottom: 0,
-                                        height: "1.8em",
-                                        width: "8.5em",
-                                        pointerEvents: "none",
-                                        background:
-                                          "linear-gradient(90deg, rgba(255,255,255,0) 0%, #fff 60%, #fff 100%)",
-                                        zIndex: 1,
-                                        display: "inline-block",
-                                        textAlign: "right",
+                                style={{
+                                  position: "absolute",
+                                  top: 10,
+                                  right: 10,
+                                  zIndex: 2,
+                                }}
+                                ref={(el) => (menuRefs.current[post.id] = el)}
+                              >
+                                <button
+                                  className={styles.dotsButton}
+                                  onClick={() => handleMenuToggle(post.id)}
+                                  aria-label="Post options"
+                                >
+                                  ⋮
+                                </button>
+                                {menuOpen[post.id] && (
+                                  <div className={styles.postMenuDropdown}>
+                                    <button
+                                      onClick={() => {
+                                        setEditModalPost(post);
+                                        setMenuOpen({});
                                       }}
-                                    />
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleRemovePost(post.id)}
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            <div className={styles.articleTitle}>
+                              {post.title}
+                            </div>
+                            {hasImage && (
+                              <div className={styles.imageWrapper}>
+                                <img
+                                  className={styles.postImage}
+                                  src={post.photoURL}
+                                  alt="Post"
+                                  style={imageStyle}
+                                  loading="lazy"
+                                  decoding="async"
+                                  width={600}
+                                  height={340}
+                                  srcSet={
+                                    post.photoURL
+                                      ? `${
+                                          post.photoURL
+                                        } 1x, ${post.photoURL.replace(
+                                          "/upload/",
+                                          "/upload/w_1200/"
+                                        )} 2x`
+                                      : undefined
+                                  }
+                                />
+                              </div>
+                            )}
+                            {post.text && (
+                              <div style={{ position: "relative" }}>
+                                <div
+                                  className={
+                                    styles.articleText +
+                                    (expandedPosts[post.id]
+                                      ? " " + styles.articleTextExpanded
+                                      : "")
+                                  }
+                                  style={
+                                    expandedPosts[post.id]
+                                      ? {
+                                          display: "block",
+                                          whiteSpace: "pre-line",
+                                          overflow: "visible",
+                                          WebkitLineClamp: "unset",
+                                          maxHeight: "none",
+                                        }
+                                      : {}
+                                  }
+                                  dangerouslySetInnerHTML={{
+                                    __html: post.text,
+                                  }}
+                                />
+                                {!expandedPosts[post.id] &&
+                                  isTextLong(post.text) && (
+                                    <>
+                                      <div
+                                        style={{
+                                          position: "absolute",
+                                          right: 0,
+                                          bottom: 0,
+                                          height: "1.8em",
+                                          width: "8.5em",
+                                          pointerEvents: "none",
+                                          background:
+                                            "linear-gradient(90deg, rgba(255,255,255,0) 0%, #fff 60%, #fff 100%)",
+                                          zIndex: 1,
+                                          display: "inline-block",
+                                          textAlign: "right",
+                                        }}
+                                      />
+                                      <div
+                                        style={{
+                                          position: "absolute",
+                                          bottom: 0,
+                                          background: "#fff",
+                                          fontSize: "0.95em",
+                                          color: "#555",
+                                          padding: "0 8px 2px 8px",
+                                          borderRadius: 6,
+                                          cursor: "pointer",
+                                          zIndex: 2,
+                                          pointerEvents: "auto",
+                                          display: "inline-block",
+                                          boxShadow:
+                                            "0 0 0 2px #fff, 0 0 8px 4px #fff",
+                                          textAlign: "right",
+                                          left: "auto",
+                                          marginLeft: "auto",
+                                          marginRight: 0,
+                                          ...(window.innerWidth >= 769
+                                            ? { transform: "translateY(0%)" }
+                                            : {}),
+                                        }}
+                                        onClick={() =>
+                                          setExpandedPosts((prev) => ({
+                                            ...prev,
+                                            [post.id]: true,
+                                          }))
+                                        }
+                                      >
+                                        <span
+                                          style={{
+                                            fontWeight: "bold",
+                                            fontSize: "1.2em",
+                                            marginRight: 2,
+                                          }}
+                                        >
+                                          ...
+                                        </span>
+                                        <span
+                                          style={{
+                                            fontSize: "0.92em",
+                                            opacity: 0.7,
+                                          }}
+                                        >
+                                          Read More
+                                        </span>
+                                      </div>
+                                    </>
+                                  )}
+                                {expandedPosts[post.id] &&
+                                  isTextLong(post.text) && (
                                     <div
                                       style={{
-                                        position: "absolute",
-                                        right: 0,
-                                        bottom: 0,
-                                        background: "#fff",
+                                        marginTop: 8,
+                                        textAlign: "right",
+                                        opacity: 0.7,
                                         fontSize: "0.95em",
                                         color: "#555",
-                                        padding: "0 8px 2px 8px",
-                                        borderRadius: 6,
                                         cursor: "pointer",
-                                        zIndex: 2,
-                                        pointerEvents: "auto",
                                         display: "inline-block",
-                                        boxShadow:
-                                          "0 0 0 2px #fff, 0 0 8px 4px #fff",
-                                        textAlign: "right",
-                                        right: 0,
-                                        left: "auto",
-                                        marginLeft: "auto",
-                                        marginRight: 0,
-                                        ...(window.innerWidth >= 769
-                                          ? { transform: "translateY(0%)" }
-                                          : {}),
                                       }}
                                       onClick={() =>
                                         setExpandedPosts((prev) => ({
                                           ...prev,
-                                          [post.id]: true,
+                                          [post.id]: false,
                                         }))
                                       }
                                     >
-                                      <span
-                                        style={{
-                                          fontWeight: "bold",
-                                          fontSize: "1.2em",
-                                          marginRight: 2,
-                                        }}
-                                      >
-                                        ...
-                                      </span>
                                       <span
                                         style={{
                                           fontSize: "0.92em",
                                           opacity: 0.7,
                                         }}
                                       >
-                                        Read More
+                                        Show Less
                                       </span>
                                     </div>
-                                  </>
-                                )}
-                              {expandedPosts[post.id] &&
-                                isTextLong(post.text) && (
-                                  <div
-                                    style={{
-                                      marginTop: 8,
-                                      textAlign: "right",
-                                      opacity: 0.7,
-                                      fontSize: "0.95em",
-                                      color: "#555",
-                                      cursor: "pointer",
-                                      display: "inline-block",
-                                    }}
-                                    onClick={() =>
-                                      setExpandedPosts((prev) => ({
-                                        ...prev,
-                                        [post.id]: false,
-                                      }))
-                                    }
-                                  >
-                                    <span
-                                      style={{
-                                        fontSize: "0.92em",
-                                        opacity: 0.7,
-                                      }}
-                                    >
-                                      Show Less
-                                    </span>
-                                  </div>
-                                )}
-                            </div>
-                          )}
-                          <div
-                            className={
-                              styles.postFooterIG + " " + styles.textOnlyFooter
-                            }
-                          >
+                                  )}
+                              </div>
+                            )}
                             <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 10,
-                              }}
+                              className={
+                                styles.postFooterIG +
+                                " " +
+                                styles.textOnlyFooter
+                              }
                             >
-                              <AuthorAvatar
-                                username={post.username}
-                                photoURL={
-                                  authorImageCache[post.username] ||
-                                  post.authorPhotoURL ||
-                                  PERSON_ICON
-                                }
-                                alt={authorFirstName}
-                                onClick={() => {
-                                  if (
-                                    userProfile &&
-                                    post.username === userProfile.username
-                                  ) {
-                                    navigate("/account");
-                                  } else {
-                                    navigate(`/user/${post.username}`);
-                                  }
-                                }}
-                              />
                               <div
-                                className={styles.authorNameIG}
-                                style={{ display: "inline", cursor: "pointer" }}
-                                onClick={() => {
-                                  if (
-                                    userProfile &&
-                                    post.username === userProfile.username
-                                  ) {
-                                    navigate("/account");
-                                  } else {
-                                    navigate(`/user/${post.username}`);
-                                  }
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 10,
                                 }}
                               >
-                                <span className={styles.authorFirstName}>
-                                  {authorFirstName}
-                                </span>
-                                <span className={styles.authorLastName}>
-                                  {authorLastName ? ` ${authorLastName}` : ""}
+                                <AuthorAvatar
+                                  username={post.username}
+                                  photoURL={
+                                    authorImageCache[post.username] ||
+                                    post.authorPhotoURL ||
+                                    PERSON_ICON
+                                  }
+                                  alt={authorFirstName}
+                                  onClick={() => {
+                                    if (
+                                      userProfile &&
+                                      post.username === userProfile.username
+                                    ) {
+                                      navigate("/account");
+                                    } else {
+                                      navigate(`/user/${post.username}`);
+                                    }
+                                  }}
+                                />
+                                <div
+                                  className={styles.authorNameIG}
+                                  style={{
+                                    display: "inline",
+                                    cursor: "pointer",
+                                  }}
+                                  onClick={() => {
+                                    if (
+                                      userProfile &&
+                                      post.username === userProfile.username
+                                    ) {
+                                      navigate("/account");
+                                    } else {
+                                      navigate(`/user/${post.username}`);
+                                    }
+                                  }}
+                                >
+                                  <span className={styles.authorFirstName}>
+                                    {authorFirstName}
+                                  </span>
+                                  <span className={styles.authorLastName}>
+                                    {authorLastName ? ` ${authorLastName}` : ""}
+                                  </span>
+                                </div>
+                                <span className={styles.postDateIG}>
+                                  {prettyDate(post.publishedAt)}
                                 </span>
                               </div>
-                              <span className={styles.postDateIG}>
-                                {prettyDate(post.publishedAt)}
-                              </span>
+                              <LikeButton
+                                isLiked={isLiked}
+                                likeCount={post.likes || 0}
+                                loading={likeLoading[post.id]}
+                                onClick={() => handleLike(post.id, isLiked)}
+                              />
                             </div>
-                            <LikeButton
-                              isLiked={isLiked}
-                              likeCount={post.likes || 0}
-                              loading={likeLoading[post.id]}
-                              onClick={() => handleLike(post.id, isLiked)}
-                            />
                           </div>
-                        </div>
+                          {editModalPost && editModalPost.id === post.id && (
+                            <Modal
+                              open={true}
+                              onClose={() => setEditModalPost(null)}
+                            >
+                              <PostEditor
+                                initialTitle={editModalPost.title}
+                                initialContent={editModalPost.text}
+                                initialImage={editModalPost.photoURL}
+                                submitting={submittingEdit}
+                                onSave={(updated) =>
+                                  handleEditSave(editModalPost.id, updated)
+                                }
+                                onCancel={() => setEditModalPost(null)}
+                              />
+                            </Modal>
+                          )}
+                        </React.Fragment>
                       );
                     })
                   )}

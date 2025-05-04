@@ -1,6 +1,71 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useLayoutEffect } from "react";
 import styles from "../styles/PostCreatePage.module.css";
 import { CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "../constants";
+
+export const Modal = ({ open, onClose, children }) => {
+  React.useEffect(() => {
+    if (!open) return;
+    const handleKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        zIndex: 2000,
+        background: "rgba(0,0,0,0.25)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 12,
+          minWidth: 320,
+          maxWidth: 540,
+          width: "95%",
+          maxHeight: "96vh",
+          overflowY: "auto",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+          padding: 24,
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 16,
+            background: "none",
+            border: "none",
+            fontSize: 22,
+            color: "#888",
+            cursor: "pointer",
+          }}
+          aria-label="Close"
+        >
+          ×
+        </button>
+        {children}
+      </div>
+    </div>
+  );
+};
 
 const PostEditor = ({
   initialTitle = "",
@@ -17,6 +82,47 @@ const PostEditor = ({
   const [imageUploading, setImageUploading] = useState(false);
   const contentEditableRef = useRef();
   const fileInputRef = useRef();
+  const caretPosRef = useRef(null);
+
+  // Save and restore caret position helpers
+  function saveCaretPosition(editableDiv) {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return null;
+    const range = selection.getRangeAt(0);
+    const preSelectionRange = range.cloneRange();
+    preSelectionRange.selectNodeContents(editableDiv);
+    preSelectionRange.setEnd(range.startContainer, range.startOffset);
+    const start = preSelectionRange.toString().length;
+    return start;
+  }
+  function restoreCaretPosition(editableDiv, pos) {
+    if (!editableDiv || pos == null) return;
+    const setPos = (node, remaining) => {
+      if (node.nodeType === 3) {
+        // text node
+        if (node.length >= remaining) {
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.setStart(node, remaining);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return true;
+        } else {
+          remaining -= node.length;
+        }
+      } else {
+        for (let i = 0; i < node.childNodes.length; i++) {
+          const found = setPos(node.childNodes[i], remaining);
+          if (found) return true;
+          if (node.childNodes[i].textContent)
+            remaining -= node.childNodes[i].textContent.length;
+        }
+      }
+      return false;
+    };
+    setPos(editableDiv, pos);
+  }
 
   // Remove all <img> tags from content
   const removeImagesFromContent = (html) => html.replace(/<img[^>]*>/gi, "");
@@ -88,6 +194,22 @@ const PostEditor = ({
     });
   };
 
+  const handleInput = (e) => {
+    // Save caret before updating content
+    caretPosRef.current = saveCaretPosition(e.currentTarget);
+    setContent(e.currentTarget.innerHTML);
+  };
+
+  useLayoutEffect(() => {
+    if (!contentEditableRef.current) return;
+    if (
+      caretPosRef.current != null &&
+      document.activeElement === contentEditableRef.current
+    ) {
+      restoreCaretPosition(contentEditableRef.current, caretPosRef.current);
+    }
+  }, [content]);
+
   return (
     <div className={styles.postCard} style={{ position: "relative" }}>
       <input
@@ -110,7 +232,7 @@ const PostEditor = ({
         aria-label="Post content editor"
         disabled={submitting}
         data-placeholder="What is on your mind...."
-        onInput={(e) => setContent(e.currentTarget.innerHTML)}
+        onInput={handleInput}
         dangerouslySetInnerHTML={{ __html: content }}
       />
       {imagePreviewUrl && (
@@ -121,14 +243,70 @@ const PostEditor = ({
             className={styles.previewImage}
             style={{ maxWidth: "100%", borderRadius: 8, margin: "10px 0" }}
           />
+        </div>
+      )}
+      {imageUploading && (
+        <div className={styles.loadingOverlay}>
+          <div className={styles.spinner}></div>
+        </div>
+      )}
+      <div
+        className={styles.formActions}
+        style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}
+      >
+        <button
+          type="button"
+          title="Image"
+          onClick={() => fileInputRef.current.click()}
+          disabled={submitting}
+          style={{
+            background: "#f5f5f5",
+            border: "1px solid #ccc",
+            borderRadius: 6,
+            padding: "10px 18px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ marginRight: 4 }}
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="M21 15l-5-5L5 21" />
+          </svg>
+          Image
+        </button>
+        <input
+          type="file"
+          accept="image/*"
+          ref={fileInputRef}
+          style={{ display: "none" }}
+          onChange={handleImageUpload}
+        />
+        {imagePreviewUrl && (
           <button
             type="button"
             style={{
-              marginLeft: 8,
               color: "#c00",
-              background: "none",
-              border: "none",
+              background: "#f5f5f5",
+              border: "1px solid #ccc",
+              borderRadius: 6,
+              padding: "10px 18px",
               cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
             }}
             onClick={() => {
               setImageFile(null);
@@ -142,53 +320,12 @@ const PostEditor = ({
           >
             Remove Image
           </button>
-        </div>
-      )}
-      <div className={styles.formatToolbar}>
-        <button
-          type="button"
-          title="Image"
-          onClick={() => fileInputRef.current.click()}
-          disabled={submitting}
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <path d="M21 15l-5-5L5 21" />
-          </svg>
-        </button>
-        <input
-          type="file"
-          accept="image/*"
-          ref={fileInputRef}
-          style={{ display: "none" }}
-          onChange={handleImageUpload}
-        />
-      </div>
-      {imageUploading && (
-        <div className={styles.loadingOverlay}>
-          <div className={styles.spinner}></div>
-        </div>
-      )}
-      <div
-        className={styles.formActions}
-        style={{ justifyContent: "flex-end" }}
-      >
+        )}
         <button
           className={styles.publishButton}
           type="button"
           onClick={handleSave}
           disabled={submitting}
-          style={{ position: "fixed", right: 32, bottom: 32, zIndex: 1001 }}
         >
           {submitting ? "Saving..." : "Save"}
         </button>
@@ -196,7 +333,6 @@ const PostEditor = ({
           type="button"
           onClick={onCancel}
           style={{
-            marginLeft: 12,
             background: "#eee",
             color: "#333",
             border: "none",
