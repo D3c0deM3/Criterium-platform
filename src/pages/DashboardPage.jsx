@@ -224,9 +224,10 @@ const DashboardPage = () => {
         usersSnapshot.forEach((userDoc) => {
           const data = userDoc.data();
           if (data.username && usernames.includes(data.username)) {
-            authorNameMap[data.username] =
-              (data.firstName || "") +
-              (data.lastName ? " " + data.lastName : "");
+            authorNameMap[data.username] = {
+              firstName: data.firstName || data.username || "Unknown",
+              lastName: data.lastName || "",
+            };
             authorPhotoMap[data.username] = data.photoURL || null;
           }
         });
@@ -530,8 +531,12 @@ const DashboardPage = () => {
                 ) : (
                   filteredPosts.map((post) => {
                     const isLiked = likedPosts.includes(post.id);
-                    const authorFullName =
-                      authorNames[post.username] || post.username || "Unknown";
+                    const authorFirstName =
+                      authorNames[post.username]?.firstName ||
+                      post.username ||
+                      "Unknown";
+                    const authorLastName =
+                      authorNames[post.username]?.lastName || "";
                     let imageStyle = {
                       width: "100%",
                       display: "block",
@@ -650,7 +655,7 @@ const DashboardPage = () => {
                           >
                             <img
                               src={post.authorPhotoURL || PERSON_ICON}
-                              alt={authorFullName}
+                              alt={authorFirstName}
                               className={styles.authorAvatar}
                               width={32}
                               height={32}
@@ -670,19 +675,14 @@ const DashboardPage = () => {
                             />
                             <span
                               className={styles.authorNameIG}
-                              onClick={() => {
-                                if (
-                                  userProfile &&
-                                  post.username === userProfile.username
-                                ) {
-                                  navigate("/account");
-                                } else {
-                                  navigate(`/user/${post.username}`);
-                                }
-                              }}
-                              style={{ cursor: "pointer" }}
+                              style={{ display: "inline" }}
                             >
-                              {authorFullName}
+                              <span className={styles.authorFirstName}>
+                                {authorFirstName}
+                              </span>
+                              <span className={styles.authorLastName}>
+                                {authorLastName ? ` ${authorLastName}` : ""}
+                              </span>
                             </span>
                             <span className={styles.postDateIG}>
                               {prettyDate(post.publishedAt)}

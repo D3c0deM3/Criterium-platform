@@ -372,7 +372,7 @@ const UserProfilePage = () => {
                       }}
                     >
                       <span style={{ opacity: 0.6, fontSize: "0.98em" }}>
-                        @{post.username}
+                        {post.username}
                       </span>
                       <button
                         className={

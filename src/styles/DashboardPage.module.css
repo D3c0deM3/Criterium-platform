@@ -228,6 +228,14 @@
   margin-bottom: 5px;
   color: #000;
   font-size: 16px;
+  word-break: break-word;
+  white-space: pre-line;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .postImage {
@@ -279,6 +287,14 @@
   margin-bottom: 10px;
   line-height: 1.5;
   font-size: 14px;
+  word-break: break-word;
+  white-space: pre-line;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
 }
 
 .postFooter {
@@ -612,6 +628,14 @@
   margin-bottom: 8px;
   letter-spacing: 0.01em;
   line-height: 1.2;
+  word-break: break-word;
+  white-space: pre-line;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 @media (min-width: 769px) {
   .articleTitle {
@@ -626,6 +650,13 @@
   margin-bottom: 10px;
   margin-top: 0;
   word-break: break-word;
+  white-space: pre-line;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
 }
 @media (min-width: 769px) {
   .articleText {
@@ -736,4 +767,13 @@
 
 .feed > div {
   width: 100%;
+}
+
+.authorLastName {
+  display: none;
+}
+@media (min-width: 769px) {
+  .authorLastName {
+    display: inline;
+  }
 }
