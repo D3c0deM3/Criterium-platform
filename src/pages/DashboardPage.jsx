@@ -27,6 +27,78 @@ const POSTS_PAGE_SIZE = 15;
 const PERSON_ICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E";
 
+// Utility to format like numbers (e.g. 1.1K, 1M)
+function formatLikesCount(num) {
+  if (num >= 1e6) return (num / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+  if (num >= 1e3) return (num / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
+  return num;
+}
+
+// Author image cache (in-memory + localStorage)
+const authorImageCache = (() => {
+  let cache = {};
+  try {
+    const stored = localStorage.getItem("authorImageCache");
+    if (stored) cache = JSON.parse(stored);
+  } catch {}
+  return cache;
+})();
+function setAuthorImageCache(username, photoURL) {
+  if (!username) return;
+  if (authorImageCache[username] !== photoURL) {
+    authorImageCache[username] = photoURL;
+    localStorage.setItem("authorImageCache", JSON.stringify(authorImageCache));
+  }
+}
+
+// Memoized by username, not just photoURL
+const AuthorAvatar = React.memo(
+  function AuthorAvatar({ username, photoURL, alt, onClick }) {
+    return (
+      <img
+        src={photoURL}
+        alt={alt}
+        className={styles.authorAvatar}
+        width={32}
+        height={32}
+        loading="lazy"
+        decoding="async"
+        style={{ cursor: "pointer" }}
+        onClick={onClick}
+      />
+    );
+  },
+  (prev, next) =>
+    prev.username === next.username && prev.photoURL === next.photoURL
+);
+
+// LikeButton component to isolate like UI and prevent post re-render
+const LikeButton = React.memo(function LikeButton({
+  isLiked,
+  likeCount,
+  onClick,
+  loading,
+}) {
+  return (
+    <span className={styles.likesRow} style={{ marginLeft: "auto" }}>
+      <button
+        className={styles.likeButton + (isLiked ? " " + styles.liked : "")}
+        onClick={onClick}
+        aria-label={isLiked ? "Unlike" : "Like"}
+        disabled={loading}
+      >
+        {isLiked ? "❤️" : "🤍"} {formatLikesCount(likeCount)}
+      </button>
+      <span className={styles.likeCount}>
+        <span className={styles.likeWord}>
+          {" "}
+          {likeCount === 1 ? "like" : "likes"}
+        </span>
+      </span>
+    </span>
+  );
+});
+
 const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -45,9 +117,11 @@ const DashboardPage = () => {
   const [lastVisible, setLastVisible] = useState(null);
   const feedRef = useRef();
   const [menuOpen, setMenuOpen] = useState({});
-  const [expandedPosts, setExpandedPosts] = useState({});
   const [likeLoading, setLikeLoading] = useState({});
   const menuRefs = useRef({});
+  const [allUsers, setAllUsers] = useState([]); // Store all users for @ search
+  const [filteredUsers, setFilteredUsers] = useState([]); // Users matching @ search
+  const [expandedPosts, setExpandedPosts] = useState({}); // Track expanded/collapsed state
 
   useEffect(() => {
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
@@ -57,18 +131,57 @@ const DashboardPage = () => {
     return () => clearTimeout(debounceTimeout.current);
   }, [searchQuery]);
 
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const usersSnapshot = await getDocs(collection(db, "users"));
+      setAllUsers(usersSnapshot.docs.map((doc) => doc.data()));
+    };
+    fetchUsers();
+  }, []);
+
+  useEffect(() => {
+    if (debouncedQuery.trim().startsWith("@")) {
+      const q = debouncedQuery.trim().slice(1).toLowerCase();
+      if (!q) {
+        setFilteredUsers([]);
+        return;
+      }
+      setFilteredUsers(
+        allUsers.filter((user) => {
+          const username = user.username?.toLowerCase() || "";
+          const firstName = user.firstName?.toLowerCase() || "";
+          const lastName = user.lastName?.toLowerCase() || "";
+          return (
+            username.includes(q) ||
+            firstName.includes(q) ||
+            lastName.includes(q)
+          );
+        })
+      );
+    } else {
+      setFilteredUsers([]);
+    }
+  }, [debouncedQuery, allUsers]);
+
   const filteredPosts = useMemo(() => {
     const sourceArray = activeTab === "for-you" ? posts : followingPosts;
-    if (!debouncedQuery.trim()) return sourceArray;
+    if (!debouncedQuery.trim() || debouncedQuery.trim().startsWith("@"))
+      return sourceArray;
     const q = debouncedQuery.trim().toLowerCase();
     return sourceArray.filter((post) => {
-      const title = post.title?.toLowerCase() || "";
-      const text = post.text?.toLowerCase() || "";
-      const author = (
-        authorNames[post.username] ||
-        post.username ||
-        ""
-      ).toLowerCase();
+      const title =
+        typeof post.title === "string" ? post.title.toLowerCase() : "";
+      const text = typeof post.text === "string" ? post.text.toLowerCase() : "";
+      let author = "";
+      if (authorNames[post.username]) {
+        const a = authorNames[post.username];
+        author = [a.firstName, a.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+      } else if (typeof post.username === "string") {
+        author = post.username.toLowerCase();
+      }
       return title.includes(q) || text.includes(q) || author.includes(q);
     });
   }, [debouncedQuery, posts, followingPosts, authorNames, activeTab]);
@@ -229,6 +342,7 @@ const DashboardPage = () => {
               lastName: data.lastName || "",
             };
             authorPhotoMap[data.username] = data.photoURL || null;
+            setAuthorImageCache(data.username, data.photoURL || null);
           }
         });
       }
@@ -236,7 +350,10 @@ const DashboardPage = () => {
       const sortedPosts = postsList
         .map((post) => ({
           ...post,
-          authorPhotoURL: authorPhotoMap[post.username] || null,
+          authorPhotoURL:
+            authorPhotoMap[post.username] ||
+            authorImageCache[post.username] ||
+            null,
         }))
         .sort(
           (a, b) =>
@@ -395,6 +512,15 @@ const DashboardPage = () => {
     };
   }, [menuOpen]);
 
+  const isTextLong = (text) => {
+    if (!text) return false;
+    // Rough check: more than 400 chars or has more than 4 line breaks
+    return (
+      text.length > 400 ||
+      (text.match(/<br\s*\/?>(?![^<]*<br)/gi) || []).length > 4
+    );
+  };
+
   return (
     <div style={{ display: "flex", height: "100vh" }}>
       <Sidebar
@@ -505,197 +631,357 @@ const DashboardPage = () => {
               paddingBottom: 0,
             }}
           >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.25 }}
-                style={{ width: "100%" }}
-              >
-                {filteredPosts.length === 0 ? (
+            {debouncedQuery.trim().startsWith("@") &&
+            filteredUsers.length > 0 ? (
+              <div style={{ width: "100%" }}>
+                <div style={{ padding: 16, color: "#555" }}>Accounts</div>
+                {filteredUsers.map((user) => (
+                  <div
+                    key={user.username}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "12px 20px",
+                      borderBottom: "1px solid #eee",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => navigate(`/user/${user.username}`)}
+                  >
+                    <img
+                      src={user.photoURL || PERSON_ICON}
+                      alt={user.username}
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: "50%",
+                        objectFit: "cover",
+                        background: "#ccc",
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 600 }}>
+                        {user.firstName} {user.lastName}
+                      </div>
+                      <div style={{ color: "#888" }}>{user.username}</div>
+                    </div>
+                  </div>
+                ))}
+                {filteredUsers.length === 0 && (
                   <div
                     style={{
                       textAlign: "center",
                       color: "#888",
                       marginTop: 40,
-                      width: "100%",
                     }}
                   >
-                    {activeTab === "following" &&
-                    followingUsernames.length === 0
-                      ? "You haven't followed anyone yet. Follow users to see their posts here."
-                      : "No posts found."}
+                    No accounts found.
                   </div>
-                ) : (
-                  filteredPosts.map((post) => {
-                    const isLiked = likedPosts.includes(post.id);
-                    const authorFirstName =
-                      authorNames[post.username]?.firstName ||
-                      post.username ||
-                      "Unknown";
-                    const authorLastName =
-                      authorNames[post.username]?.lastName || "";
-                    let imageStyle = {
-                      width: "100%",
-                      display: "block",
-                      objectFit: "cover",
-                      borderRadius: "8px",
-                      marginBottom: "10px",
-                    };
-                    const hasImage = Boolean(post.photoURL);
-                    const isOwnPost =
-                      userProfile && post.username === userProfile.username;
-                    const isExpanded = expandedPosts[post.id];
-                    return (
-                      <div
-                        key={post.id}
-                        className={styles.post}
-                        style={{ position: "relative" }}
-                      >
-                        {isOwnPost && (
-                          <div
-                            style={{
-                              position: "absolute",
-                              top: 10,
-                              right: 10,
-                              zIndex: 2,
-                            }}
-                            ref={(el) => (menuRefs.current[post.id] = el)}
-                          >
-                            <button
-                              className={styles.dotsButton}
-                              onClick={() => handleMenuToggle(post.id)}
-                              aria-label="Post options"
-                            >
-                              ⋮
-                            </button>
-                            {menuOpen[post.id] && (
-                              <div className={styles.postMenuDropdown}>
-                                <button
-                                  onClick={() => alert("Edit coming soon!")}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => handleRemovePost(post.id)}
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        <div className={styles.articleTitle}>{post.title}</div>
-                        {hasImage && (
-                          <div className={styles.imageWrapper}>
-                            <img
-                              className={styles.postImage}
-                              src={post.photoURL}
-                              alt="Post"
-                              style={imageStyle}
-                              loading="lazy"
-                              decoding="async"
-                              width={600}
-                              height={340}
-                              srcSet={
-                                post.photoURL
-                                  ? `${
-                                      post.photoURL
-                                    } 1x, ${post.photoURL.replace(
-                                      "/upload/",
-                                      "/upload/w_1200/"
-                                    )} 2x`
-                                  : undefined
-                              }
-                            />
-                          </div>
-                        )}
-                        {post.text && (
-                          <div
-                            className={styles.articleText}
-                            dangerouslySetInnerHTML={{ __html: post.text }}
-                          />
-                        )}
-                        <div
-                          className={
-                            styles.postFooterIG + " " + styles.textOnlyFooter
-                          }
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 10,
-                            }}
-                          >
-                            <img
-                              src={post.authorPhotoURL || PERSON_ICON}
-                              alt={authorFirstName}
-                              className={styles.authorAvatar}
-                              width={32}
-                              height={32}
-                              loading="lazy"
-                              decoding="async"
-                              style={{ cursor: "pointer" }}
-                              onClick={() => {
-                                if (
-                                  userProfile &&
-                                  post.username === userProfile.username
-                                ) {
-                                  navigate("/account");
-                                } else {
-                                  navigate(`/user/${post.username}`);
-                                }
-                              }}
-                            />
-                            <span
-                              className={styles.authorNameIG}
-                              style={{ display: "inline" }}
-                            >
-                              <span className={styles.authorFirstName}>
-                                {authorFirstName}
-                              </span>
-                              <span className={styles.authorLastName}>
-                                {authorLastName ? ` ${authorLastName}` : ""}
-                              </span>
-                            </span>
-                            <span className={styles.postDateIG}>
-                              {prettyDate(post.publishedAt)}
-                            </span>
-                          </div>
-                          <span
-                            className={styles.likesRow}
-                            style={{ marginLeft: "auto" }}
-                          >
-                            <button
-                              className={
-                                styles.likeButton +
-                                (isLiked ? " " + styles.liked : "")
-                              }
-                              onClick={() => handleLike(post.id, isLiked)}
-                              aria-label={isLiked ? "Unlike" : "Like"}
-                              disabled={likeLoading[post.id]}
-                            >
-                              {isLiked ? "❤️" : "🤍"}
-                            </button>
-                            <span className={styles.likeCount}>
-                              {formatLikesCount(post.likes || 0)}
-                              <span className={styles.likeWord}>
-                                {" "}
-                                {post.likes === 1 ? "like" : "likes"}
-                              </span>
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
                 )}
-                <div className={styles.feedSpacer} />
-              </motion.div>
-            </AnimatePresence>
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.25 }}
+                  style={{ width: "100%" }}
+                >
+                  {filteredPosts.length === 0 ? (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        color: "#888",
+                        marginTop: 40,
+                        width: "100%",
+                      }}
+                    >
+                      {activeTab === "following" &&
+                      followingUsernames.length === 0
+                        ? "You haven't followed anyone yet. Follow users to see their posts here."
+                        : "No posts found."}
+                    </div>
+                  ) : (
+                    filteredPosts.map((post) => {
+                      const isLiked = likedPosts.includes(post.id);
+                      const authorFirstName =
+                        authorNames[post.username]?.firstName ||
+                        post.username ||
+                        "Unknown";
+                      const authorLastName =
+                        authorNames[post.username]?.lastName || "";
+                      let imageStyle = {
+                        width: "100%",
+                        display: "block",
+                        objectFit: "cover",
+                        borderRadius: "8px",
+                        marginBottom: "10px",
+                      };
+                      const hasImage = Boolean(post.photoURL);
+                      const isOwnPost =
+                        userProfile && post.username === userProfile.username;
+                      return (
+                        <div
+                          key={post.id}
+                          className={styles.post}
+                          style={{ position: "relative" }}
+                        >
+                          {isOwnPost && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: 10,
+                                right: 10,
+                                zIndex: 2,
+                              }}
+                              ref={(el) => (menuRefs.current[post.id] = el)}
+                            >
+                              <button
+                                className={styles.dotsButton}
+                                onClick={() => handleMenuToggle(post.id)}
+                                aria-label="Post options"
+                              >
+                                ⋮
+                              </button>
+                              {menuOpen[post.id] && (
+                                <div className={styles.postMenuDropdown}>
+                                  <button
+                                    onClick={() => alert("Edit coming soon!")}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemovePost(post.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <div className={styles.articleTitle}>
+                            {post.title}
+                          </div>
+                          {hasImage && (
+                            <div className={styles.imageWrapper}>
+                              <img
+                                className={styles.postImage}
+                                src={post.photoURL}
+                                alt="Post"
+                                style={imageStyle}
+                                loading="lazy"
+                                decoding="async"
+                                width={600}
+                                height={340}
+                                srcSet={
+                                  post.photoURL
+                                    ? `${
+                                        post.photoURL
+                                      } 1x, ${post.photoURL.replace(
+                                        "/upload/",
+                                        "/upload/w_1200/"
+                                      )} 2x`
+                                    : undefined
+                                }
+                              />
+                            </div>
+                          )}
+                          {post.text && (
+                            <div style={{ position: "relative" }}>
+                              <div
+                                className={
+                                  styles.articleText +
+                                  (expandedPosts[post.id]
+                                    ? " " + styles.articleTextExpanded
+                                    : "")
+                                }
+                                style={
+                                  expandedPosts[post.id]
+                                    ? {
+                                        display: "block",
+                                        whiteSpace: "pre-line",
+                                        overflow: "visible",
+                                        WebkitLineClamp: "unset",
+                                        maxHeight: "none",
+                                      }
+                                    : {}
+                                }
+                                dangerouslySetInnerHTML={{ __html: post.text }}
+                              />
+                              {!expandedPosts[post.id] &&
+                                isTextLong(post.text) && (
+                                  <>
+                                    <div
+                                      style={{
+                                        position: "absolute",
+                                        right: 0,
+                                        bottom: 0,
+                                        height: "1.8em",
+                                        width: "8.5em",
+                                        pointerEvents: "none",
+                                        background:
+                                          "linear-gradient(90deg, rgba(255,255,255,0) 0%, #fff 60%, #fff 100%)",
+                                        zIndex: 1,
+                                        display: "inline-block",
+                                        textAlign: "right",
+                                      }}
+                                    />
+                                    <div
+                                      style={{
+                                        position: "absolute",
+                                        right: 0,
+                                        bottom: 0,
+                                        background: "#fff",
+                                        fontSize: "0.95em",
+                                        color: "#555",
+                                        padding: "0 8px 2px 8px",
+                                        borderRadius: 6,
+                                        cursor: "pointer",
+                                        zIndex: 2,
+                                        pointerEvents: "auto",
+                                        display: "inline-block",
+                                        boxShadow:
+                                          "0 0 0 2px #fff, 0 0 8px 4px #fff",
+                                        textAlign: "right",
+                                        right: 0,
+                                        left: "auto",
+                                        marginLeft: "auto",
+                                        marginRight: 0,
+                                        ...(window.innerWidth >= 769
+                                          ? { transform: "translateY(0%)" }
+                                          : {}),
+                                      }}
+                                      onClick={() =>
+                                        setExpandedPosts((prev) => ({
+                                          ...prev,
+                                          [post.id]: true,
+                                        }))
+                                      }
+                                    >
+                                      <span
+                                        style={{
+                                          fontWeight: "bold",
+                                          fontSize: "1.2em",
+                                          marginRight: 2,
+                                        }}
+                                      >
+                                        ...
+                                      </span>
+                                      <span
+                                        style={{
+                                          fontSize: "0.92em",
+                                          opacity: 0.7,
+                                        }}
+                                      >
+                                        Read More
+                                      </span>
+                                    </div>
+                                  </>
+                                )}
+                              {expandedPosts[post.id] &&
+                                isTextLong(post.text) && (
+                                  <div
+                                    style={{
+                                      marginTop: 8,
+                                      textAlign: "right",
+                                      opacity: 0.7,
+                                      fontSize: "0.95em",
+                                      color: "#555",
+                                      cursor: "pointer",
+                                      display: "inline-block",
+                                    }}
+                                    onClick={() =>
+                                      setExpandedPosts((prev) => ({
+                                        ...prev,
+                                        [post.id]: false,
+                                      }))
+                                    }
+                                  >
+                                    <span
+                                      style={{
+                                        fontSize: "0.92em",
+                                        opacity: 0.7,
+                                      }}
+                                    >
+                                      Show Less
+                                    </span>
+                                  </div>
+                                )}
+                            </div>
+                          )}
+                          <div
+                            className={
+                              styles.postFooterIG + " " + styles.textOnlyFooter
+                            }
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
+                              }}
+                            >
+                              <AuthorAvatar
+                                username={post.username}
+                                photoURL={
+                                  authorImageCache[post.username] ||
+                                  post.authorPhotoURL ||
+                                  PERSON_ICON
+                                }
+                                alt={authorFirstName}
+                                onClick={() => {
+                                  if (
+                                    userProfile &&
+                                    post.username === userProfile.username
+                                  ) {
+                                    navigate("/account");
+                                  } else {
+                                    navigate(`/user/${post.username}`);
+                                  }
+                                }}
+                              />
+                              <div
+                                className={styles.authorNameIG}
+                                style={{ display: "inline", cursor: "pointer" }}
+                                onClick={() => {
+                                  if (
+                                    userProfile &&
+                                    post.username === userProfile.username
+                                  ) {
+                                    navigate("/account");
+                                  } else {
+                                    navigate(`/user/${post.username}`);
+                                  }
+                                }}
+                              >
+                                <span className={styles.authorFirstName}>
+                                  {authorFirstName}
+                                </span>
+                                <span className={styles.authorLastName}>
+                                  {authorLastName ? ` ${authorLastName}` : ""}
+                                </span>
+                              </div>
+                              <span className={styles.postDateIG}>
+                                {prettyDate(post.publishedAt)}
+                              </span>
+                            </div>
+                            <LikeButton
+                              isLiked={isLiked}
+                              likeCount={post.likes || 0}
+                              loading={likeLoading[post.id]}
+                              onClick={() => handleLike(post.id, isLiked)}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div className={styles.feedSpacer} />
+                </motion.div>
+              </AnimatePresence>
+            )}
           </div>
           <button
             className={styles.fab}
