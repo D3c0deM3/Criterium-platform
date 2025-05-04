@@ -157,10 +157,16 @@ const PostEditor = ({
 
   const handleSave = async () => {
     if (!title.trim() || !contentEditableRef.current.innerText.trim()) {
-      setAlertInfo({ word: null, message: "Please enter both a title and content for your post." });
+      setAlertInfo({
+        word: null,
+        message: "Please enter both a title and content for your post.",
+      });
       return;
     }
-    const plainText = contentEditableRef.current.innerText || contentEditableRef.current.textContent || "";
+    const plainText =
+      contentEditableRef.current.innerText ||
+      contentEditableRef.current.textContent ||
+      "";
     // Find which banned word is causing the violation
     const allText = title + "\n" + plainText;
     let violatingWord = null;
@@ -174,7 +180,7 @@ const PostEditor = ({
     if (violatingWord) {
       setAlertInfo({
         word: violatingWord,
-        message: `Using word "${violatingWord}" violates our rules. Please remove that word or you are not able to save the changes or publish.`
+        message: `Using word "${violatingWord}" violates our rules. Please remove that word or you are not able to save the changes or publish.`,
       });
       return;
     }
@@ -234,34 +240,53 @@ const PostEditor = ({
   return (
     <div className={styles.postCard} style={{ position: "relative" }}>
       {alertInfo && (
-        <div style={{
-          position: "absolute",
-          bottom: 16,
-          right: 16,
-          background: "#fff3cd",
-          color: "#856404",
-          border: "1px solid #ffeeba",
-          borderRadius: 8,
-          padding: "20px 24px 16px 48px",
-          minWidth: 220,
-          maxWidth: 340,
-          fontWeight: 500,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.07)",
-          zIndex: 10,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-start"
-        }}>
-          <span style={{
+        <div
+          style={{
             position: "absolute",
-            left: 18,
-            top: 22,
-            fontSize: 20,
-            color: "#e0a800"
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e0a800" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1"/></svg>
+            bottom: 16,
+            right: 16,
+            background: "#fff3cd",
+            color: "#856404",
+            border: "1px solid #ffeeba",
+            borderRadius: 8,
+            padding: "20px 24px 16px 48px",
+            minWidth: 220,
+            maxWidth: 340,
+            fontWeight: 500,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.07)",
+            zIndex: 10,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              left: 18,
+              top: 22,
+              fontSize: 20,
+              color: "#e0a800",
+            }}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#e0a800"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <circle cx="12" cy="16" r="1" />
+            </svg>
           </span>
-          <span style={{ marginLeft: 16, marginBottom: 12 }}>{alertInfo.message}</span>
+          <span style={{ marginLeft: 16, marginBottom: 12 }}>
+            {alertInfo.message}
+          </span>
           <button
             style={{
               alignSelf: "flex-end",
@@ -271,7 +296,7 @@ const PostEditor = ({
               borderRadius: 6,
               padding: "6px 20px",
               fontWeight: 600,
-              cursor: "pointer"
+              cursor: "pointer",
             }}
             onClick={() => setAlertInfo(null)}
           >

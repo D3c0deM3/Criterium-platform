@@ -5,6 +5,7 @@ import { auth, db } from "../firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import Sidebar from "./Sidebar";
 import { CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "../constants";
+import { bannedWords } from "../utils/contentFilter";
 
 function normalizeText(text) {
   return text
@@ -26,199 +27,13 @@ function normalizeText(text) {
     .replace(/\s+/g, ""); // Remove spaces for stricter matching
 }
 
-function containsBannedWords(text) {
-  const banned = [
-    /\bsex\b/i,
-    /\bfuck\b/i,
-    /\bnigg[ae]r\b/i,
-    /\bass\b/i,
-    /\bshit\b/i,
-    /\bcum\b/i,
-    /\blox\b/i,
-    /\bshoxi\b/i,
-    /\bdalbayob\b/i,
-    /\bchumo\b/i,
-    /\bseks\b/i,
-    /\bskay\b/i,
-    /\bnegr\b/i,
-    /\bbla\b/i,
-    /\bblat\b/i,
-    /\bblin\b/i,
-    /\bnegas\b/i,
-    /\bneggas\b/i,
-    /\bnigga\b/i,
-    /\bporn\b/i,
-    /\bdick\b/i,
-    /\bpussy\b/i,
-    /\bcock\b/i,
-    /\bslut\b/i,
-    /\bwhore\b/i,
-    /\bfag\b/i,
-    /\bretard\b/i,
-    /\bcunt\b/i,
-    /\bpenis\b/i,
-    /\bvagina\b/i,
-    /\btits?\b/i,
-    /\bboobs?\b/i,
-    /\banal\b/i,
-    /\brape\b/i,
-    /\bincest\b/i,
-    /\bmolest\b/i,
-    /\bkill\b/i,
-    /\bmurder\b/i,
-    /\bsuicide\b/i,
-    /\bterrorist?\b/i,
-    /\bisis\b/i,
-    /\bjihad\b/i,
-    /\bblowjob\b/i,
-    /\bhandjob\b/i,
-    /\borgy\b/i,
-    /\bgangbang\b/i,
-    /\bpaedophile\b/i,
-    /\bpedophile\b/i,
-    /\bchild\s*abuse\b/i,
-    /\bzoophilia\b/i,
-    /\bbeastiality\b/i,
-    /\bnecrophilia\b/i,
-    /\bbestiality\b/i,
-    /\bqueer\b/i,
-    /\bslur\b/i,
-    /\blynch\b/i,
-    /\bgenocide\b/i,
-    /\bholocaust\b/i,
-    /\bshoot\b/i,
-    /\bstab\b/i,
-    /\bgun\b/i,
-    /\bweapon\b/i,
-    /\bexplosive\b/i,
-    /\bbomb\b/i,
-    /\bexecute\b/i,
-    /\bhang\b/i,
-    /\bpoison\b/i,
-    /\bselfharm\b/i,
-    /\bcutting\b/i,
-    /\bselfmutilation\b/i,
-    /\baddict\b/i,
-    /\bdrugs?\b/i,
-    /\bheroin\b/i,
-    /\bcocaine\b/i,
-    /\bcrack\b/i,
-    /\bmeth\b/i,
-    /\bweed\b/i,
-    /\bmarijuana\b/i,
-    /\bopium\b/i,
-    /\bhash\b/i,
-    /\bthc\b/i,
-    /\bmdma\b/i,
-    /\becstasy\b/i,
-    /\bshrooms?\b/i,
-    /\bpsychedelic\b/i,
-    /\btrippy\b/i,
-    /\bped0\b/i,
-    /\bpedo\b/i,
-    /\bpaedo\b/i,
-    /\bpaed0\b/i,
-    /\bmolester\b/i,
-    /\bchildporn\b/i,
-    /\bcp\b/i,
-    /\bzoophile\b/i,
-    /\bbeastial\b/i,
-    /\bnecrophile\b/i,
-    /\binc3st\b/i,
-    /\binc3st\b/i,
-    /\bterror\b/i,
-    /\bextremist\b/i,
-    /\bwhitepower\b/i,
-    /\bkkk\b/i,
-    /\bklan\b/i,
-    /\bwhitepride\b/i,
-    /\bwhitesupremacy\b/i,
-    /\bblacksupremacy\b/i,
-    /\bantisemitic\b/i,
-    /\bzionist\b/i,
-    /\bzionism\b/i,
-    /\bnazi\b/i,
-    /\bhitler\b/i,
-    /\bsemen\b/i,
-    /\bsp3rm\b/i,
-    /\bsperm\b/i,
-    /\btesticle\b/i,
-    /\bscrotum\b/i,
-    /\bforeskin\b/i,
-    /\banus\b/i,
-    /\brectum\b/i,
-    /\bprostitute\b/i,
-    /\bescort\b/i,
-    /\bstripper\b/i,
-    /\bstripclub\b/i,
-    /\bwh0re\b/i,
-    /\bwh0r3\b/i,
-    /\bbiatch\b/i,
-    /\bbitch\b/i,
-    /\bhoe\b/i,
-    /\bho\b/i,
-    /\btranny\b/i,
-    /\btranssexual\b/i,
-    /\btransgender\b/i,
-    /\bdyke\b/i,
-    /\bspic\b/i,
-    /\bkike\b/i,
-    /\bchink\b/i,
-    /\bgook\b/i,
-    /\bjap\b/i,
-    /\bwetback\b/i,
-    /\bbeaner\b/i,
-    /\bcoon\b/i,
-    /\bspook\b/i,
-    /\bporchmonkey\b/i,
-    /\btowelhead\b/i,
-    /\bsandnigger\b/i,
-    /\braghead\b/i,
-    /\bcameljockey\b/i,
-    /\bgypsy\b/i,
-    /\bretarded\b/i,
-    /\bcripple\b/i,
-    /\bspaz\b/i,
-    /\bspastic\b/i,
-    /\bautist\b/i,
-    /\bautistic\b/i,
-    /\bmidget\b/i,
-    /\bdwarf\b/i,
-    /\bhermaphrodite\b/i,
-    /\bintersex\b/i,
-    /\bdownsyndrome\b/i,
-    /\bspina\b/i,
-    /\bbastard\b/i,
-    /\bslant\b/i,
-    /\bcrip\b/i,
-    /\bcrips\b/i,
-    /\bbloods\b/i,
-    /\bgang\b/i,
-    /\bmafia\b/i,
-    /\bcartel\b/i,
-    /\bsyndicate\b/i,
-    /\bextort\b/i,
-    /\bblackmail\b/i,
-    /\bbribe\b/i,
-    /\bcorrupt\b/i,
-    /\bscam\b/i,
-    /\bfraud\b/i,
-    /\bcheat\b/i,
-    /\bembezzle\b/i,
-    /\bforgery\b/i,
-    /\bplagiarize\b/i,
-    /\bplagiarism\b/i,
-  ];
-  const norm = normalizeText(text);
-  return banned.some((re) => re.test(norm));
-}
-
 const PostCreatePage = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [alertInfo, setAlertInfo] = useState(null);
   const navigate = useNavigate();
   const fileInputRef = React.useRef();
   const contentEditableRef = React.useRef();
@@ -289,17 +104,28 @@ const PostCreatePage = () => {
     e.preventDefault();
     const plainText = title + "\n" + contentEditableRef.current.innerText;
     if (!title.trim() || !contentEditableRef.current.innerText.trim()) {
-      alert("Please enter both a title and content for your post.");
+      setAlertInfo({
+        word: null,
+        message: "Please enter both a title and content for your post.",
+      });
       return;
     }
-    // Check both title and content for banned words
-    if (
-      containsBannedWords(title) ||
-      containsBannedWords(contentEditableRef.current.innerText)
-    ) {
-      alert(
-        "Your post contains inappropriate or banned words. Please revise and try again."
+    // Find which banned word is causing the violation
+    let violatingWord = null;
+    for (let i = 0; i < bannedWords.length; i++) {
+      const match = (title + "\n" + contentEditableRef.current.innerText).match(
+        bannedWords[i]
       );
+      if (match) {
+        violatingWord = match[0];
+        break;
+      }
+    }
+    if (violatingWord) {
+      setAlertInfo({
+        word: violatingWord,
+        message: `Using word "${violatingWord}" violates our rules. Please remove that word or you are not able to publish.`,
+      });
       return;
     }
     setSubmitting(true);
@@ -317,9 +143,11 @@ const PostCreatePage = () => {
       );
       const moderationData = await moderationRes.json();
       if (moderationData.flagged) {
-        alert(
-          "Your post contains content that is not allowed (politically sensitive or inappropriate). Please revise and try again."
-        );
+        setAlertInfo({
+          word: null,
+          message:
+            "Your post contains content that is not allowed (politically sensitive or inappropriate). Please revise and try again.",
+        });
         setSubmitting(false);
         return;
       }
@@ -346,9 +174,12 @@ const PostCreatePage = () => {
         if (data.secure_url) {
           photoURL = data.secure_url;
         } else {
-          alert(
-            "Image upload failed: " + (data.error?.message || "Unknown error")
-          );
+          setAlertInfo({
+            word: null,
+            message:
+              "Image upload failed: " +
+              (data.error?.message || "Unknown error"),
+          });
           setSubmitting(false);
           return;
         }
@@ -378,7 +209,10 @@ const PostCreatePage = () => {
       setImageFile(null);
       navigate("/dashboard");
     } catch (error) {
-      alert("Failed to publish post. Please try again later.");
+      setAlertInfo({
+        word: null,
+        message: "Failed to publish post. Please try again later.",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -646,6 +480,86 @@ const PostCreatePage = () => {
             disabled={submitting}
             data-placeholder="What is on your mind...."
           />
+          {alertInfo && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 2000,
+                background: "rgba(0,0,0,0.15)",
+              }}
+            >
+              <div
+                style={{
+                  background: "#fff3cd",
+                  color: "#856404",
+                  border: "1px solid #ffeeba",
+                  borderRadius: 8,
+                  padding: "28px 32px 20px 56px",
+                  minWidth: 260,
+                  maxWidth: 400,
+                  fontWeight: 500,
+                  boxShadow: "0 2px 16px rgba(0,0,0,0.13)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  position: "relative",
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 22,
+                    top: 28,
+                    fontSize: 22,
+                    color: "#e0a800",
+                  }}
+                >
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#e0a800"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <circle cx="12" cy="16" r="1" />
+                  </svg>
+                </span>
+                <span
+                  style={{ marginLeft: 20, marginBottom: 16, marginTop: 2 }}
+                >
+                  {alertInfo.message}
+                </span>
+                <button
+                  style={{
+                    alignSelf: "flex-end",
+                    background: "#344955",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "8px 28px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                  onClick={() => setAlertInfo(null)}
+                  type="button"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
           <div className={styles.formActions}>
             <button
               className={styles.publishButton}
