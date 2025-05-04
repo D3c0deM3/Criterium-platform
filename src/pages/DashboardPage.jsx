@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import { motion, AnimatePresence } from "framer-motion";
 import PostEditor, { Modal } from "../components/PostEditor.jsx";
+import ExpandablePostText from "../components/ExpandablePostText";
 
 const POSTS_PAGE_SIZE = 15;
 
@@ -764,15 +765,6 @@ const DashboardPage = () => {
     };
   }, [menuOpen]);
 
-  const isTextLong = (text) => {
-    if (!text) return false;
-    // Rough check: more than 400 chars or has more than 4 line breaks
-    return (
-      text.length > 400 ||
-      (text.match(/<br\s*\/?>(?![^<]*<br)/gi) || []).length > 4
-    );
-  };
-
   return (
     <div style={{ display: "flex", height: "100vh" }}>
       <Sidebar
@@ -1046,125 +1038,16 @@ const DashboardPage = () => {
                             )}
                             {post.text && (
                               <div style={{ position: "relative" }}>
-                                <div
-                                  className={
-                                    styles.articleText +
-                                    (expandedPosts[post.id]
-                                      ? " " + styles.articleTextExpanded
-                                      : "")
+                                <ExpandablePostText
+                                  html={post.text}
+                                  expanded={!!expandedPosts[post.id]}
+                                  onToggle={() =>
+                                    setExpandedPosts((prev) => ({
+                                      ...prev,
+                                      [post.id]: !prev[post.id],
+                                    }))
                                   }
-                                  style={
-                                    expandedPosts[post.id]
-                                      ? {
-                                          display: "block",
-                                          whiteSpace: "pre-line",
-                                          overflow: "visible",
-                                          WebkitLineClamp: "unset",
-                                          maxHeight: "none",
-                                        }
-                                      : {}
-                                  }
-                                  dangerouslySetInnerHTML={{
-                                    __html: post.text,
-                                  }}
                                 />
-                                {!expandedPosts[post.id] &&
-                                  isTextLong(post.text) && (
-                                    <>
-                                      <div
-                                        style={{
-                                          position: "absolute",
-                                          right: 0,
-                                          bottom: 0,
-                                          height: "1.8em",
-                                          width: "8.5em",
-                                          pointerEvents: "none",
-                                          background:
-                                            "linear-gradient(90deg, rgba(255,255,255,0) 0%, #fff 60%, #fff 100%)",
-                                          zIndex: 1,
-                                          display: "inline-block",
-                                          textAlign: "right",
-                                        }}
-                                      />
-                                      <div
-                                        style={{
-                                          position: "absolute",
-                                          bottom: 0,
-                                          background: "#fff",
-                                          fontSize: "0.95em",
-                                          color: "#555",
-                                          padding: "0 8px 2px 8px",
-                                          borderRadius: 6,
-                                          cursor: "pointer",
-                                          zIndex: 2,
-                                          pointerEvents: "auto",
-                                          display: "inline-block",
-                                          boxShadow:
-                                            "0 0 0 2px #fff, 0 0 8px 4px #fff",
-                                          textAlign: "right",
-                                          left: "auto",
-                                          marginLeft: "auto",
-                                          marginRight: 0,
-                                          ...(window.innerWidth >= 769
-                                            ? { transform: "translateY(0%)" }
-                                            : {}),
-                                        }}
-                                        onClick={() =>
-                                          setExpandedPosts((prev) => ({
-                                            ...prev,
-                                            [post.id]: true,
-                                          }))
-                                        }
-                                      >
-                                        <span
-                                          style={{
-                                            fontWeight: "bold",
-                                            fontSize: "1.2em",
-                                            marginRight: 2,
-                                          }}
-                                        >
-                                          ...
-                                        </span>
-                                        <span
-                                          style={{
-                                            fontSize: "0.92em",
-                                            opacity: 0.7,
-                                          }}
-                                        >
-                                          Read More
-                                        </span>
-                                      </div>
-                                    </>
-                                  )}
-                                {expandedPosts[post.id] &&
-                                  isTextLong(post.text) && (
-                                    <div
-                                      style={{
-                                        marginTop: 8,
-                                        textAlign: "right",
-                                        opacity: 0.7,
-                                        fontSize: "0.95em",
-                                        color: "#555",
-                                        cursor: "pointer",
-                                        display: "inline-block",
-                                      }}
-                                      onClick={() =>
-                                        setExpandedPosts((prev) => ({
-                                          ...prev,
-                                          [post.id]: false,
-                                        }))
-                                      }
-                                    >
-                                      <span
-                                        style={{
-                                          fontSize: "0.92em",
-                                          opacity: 0.7,
-                                        }}
-                                      >
-                                        Show Less
-                                      </span>
-                                    </div>
-                                  )}
                               </div>
                             )}
                             <div
