@@ -68,7 +68,11 @@ export default function ExpandablePostText({ html, expanded, onToggle }) {
           }}
           onClick={onToggle}
         >
-          <span style={{ fontWeight: "bold", fontSize: "1.2em", marginRight: 2 }}>...</span>
+          <span
+            style={{ fontWeight: "bold", fontSize: "1.2em", marginRight: 2 }}
+          >
+            ...
+          </span>
           <span style={{ fontSize: "0.92em", opacity: 0.7 }}>Read More</span>
         </span>
       </div>
