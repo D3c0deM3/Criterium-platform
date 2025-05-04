@@ -120,7 +120,7 @@
 
 .postsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 18px;
   margin-top: 12px;
   grid-auto-flow: dense;
@@ -375,6 +375,10 @@
     display: flex;
     transform: translateX(0);
   }
+  .postsGrid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 
 @media (max-width: 600px) {
@@ -402,8 +406,12 @@
     min-height: 120px;
   }
   .postImage {
-    max-height: 100px;
+    width: 100%;
+    height: 220px;
+    max-height: none;
+    object-fit: cover;
     border-radius: 6px;
+    display: block;
   }
 }
 
@@ -567,4 +575,8 @@
 
 .postMenuDropdown button:not(:last-child) {
   border-bottom: 1px solid #eee;
+}
+
+.postsGrid .postCard:only-child {
+  grid-column: 1 / -1;
 }

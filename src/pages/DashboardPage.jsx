@@ -16,6 +16,7 @@ import {
   startAfter,
   onSnapshot,
   deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
@@ -23,7 +24,6 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const POSTS_PAGE_SIZE = 15;
 
-// Add PERSON_ICON for default profile
 const PERSON_ICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E";
 
@@ -32,23 +32,23 @@ const DashboardPage = () => {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [posts, setPosts] = useState([]);
-  const [followingPosts, setFollowingPosts] = useState([]); // Store following posts separately
+  const [followingPosts, setFollowingPosts] = useState([]);
   const [activeTab, setActiveTab] = useState("for-you");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [likedPosts, setLikedPosts] = useState([]); // post IDs liked by user
-  const [authorNames, setAuthorNames] = useState({}); // { username: fullName }
-  const [followingUsernames, setFollowingUsernames] = useState([]); // Usernames of users being followed
+  const [likedPosts, setLikedPosts] = useState([]);
+  const [authorNames, setAuthorNames] = useState({});
+  const [followingUsernames, setFollowingUsernames] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const debounceTimeout = useRef();
   const navigate = useNavigate();
   const [lastVisible, setLastVisible] = useState(null);
   const feedRef = useRef();
-  const [menuOpen, setMenuOpen] = useState({}); // { postId: boolean }
-  const [expandedPosts, setExpandedPosts] = useState({}); // { postId: true/false }
-  const [likeLoading, setLikeLoading] = useState({}); // { postId: boolean }
+  const [menuOpen, setMenuOpen] = useState({});
+  const [expandedPosts, setExpandedPosts] = useState({});
+  const [likeLoading, setLikeLoading] = useState({});
+  const menuRefs = useRef({});
 
-  // Debounce search input
   useEffect(() => {
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
     debounceTimeout.current = setTimeout(() => {
@@ -57,11 +57,8 @@ const DashboardPage = () => {
     return () => clearTimeout(debounceTimeout.current);
   }, [searchQuery]);
 
-  // Memoized filtered posts (search only loaded posts)
   const filteredPosts = useMemo(() => {
-    // Select the appropriate post array based on active tab
     const sourceArray = activeTab === "for-you" ? posts : followingPosts;
-
     if (!debouncedQuery.trim()) return sourceArray;
     const q = debouncedQuery.trim().toLowerCase();
     return sourceArray.filter((post) => {
@@ -76,7 +73,6 @@ const DashboardPage = () => {
     });
   }, [debouncedQuery, posts, followingPosts, authorNames, activeTab]);
 
-  // Load posts from sessionStorage if available
   useEffect(() => {
     const cached = sessionStorage.getItem("postsWindow");
     if (cached) {
@@ -86,7 +82,6 @@ const DashboardPage = () => {
     }
   }, []);
 
-  // Real-time listener for the first page
   useEffect(() => {
     setLoading(true);
     const q = query(
@@ -113,48 +108,37 @@ const DashboardPage = () => {
     return () => unsub();
   }, []);
 
-  // Real-time listener for current user's profile to update following list
   useEffect(() => {
     if (!user) return;
-
     const userDocRef = doc(db, "users", user.uid);
     const unsub = onSnapshot(userDocRef, async (docSnapshot) => {
       if (docSnapshot.exists()) {
         const userData = docSnapshot.data();
         setUserProfile(userData);
         setLikedPosts(userData.likedPosts || []);
-
-        // Get followingId from user document
         const userFollowingList = userData.followingId || [];
-
-        // Get usernames of followed users
         if (userFollowingList.length > 0) {
           const followedUsers = await Promise.all(
             userFollowingList.map((uid) => getDoc(doc(db, "users", uid)))
           );
-
           const followedUsernames = followedUsers
             .filter((doc) => doc.exists())
             .map((doc) => doc.data().username)
             .filter(Boolean);
-
           setFollowingUsernames(followedUsernames);
         } else {
           setFollowingUsernames([]);
         }
       }
     });
-
     return () => unsub();
   }, [user]);
 
-  // Infinite scroll: load more posts as user scrolls near end
   useEffect(() => {
     const handleScroll = () => {
       if (!feedRef.current || loading) return;
       const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
       if (scrollHeight - scrollTop - clientHeight < 200 && lastVisible) {
-        // Load next page
         setLoading(true);
         const q = query(
           collection(db, "posts"),
@@ -169,7 +153,6 @@ const DashboardPage = () => {
           }));
           setPosts((prev) => {
             let combined = [...prev, ...morePosts];
-            // Sliding window: keep only the latest 25
             if (combined.length > 25)
               combined = combined.slice(combined.length - 25);
             sessionStorage.setItem(
@@ -191,7 +174,6 @@ const DashboardPage = () => {
     return () => feed && feed.removeEventListener("scroll", handleScroll);
   }, [lastVisible, loading]);
 
-  // Clear sessionStorage on browser close
   useEffect(() => {
     const clearCache = () => sessionStorage.removeItem("postsWindow");
     window.addEventListener("beforeunload", clearCache);
@@ -205,50 +187,39 @@ const DashboardPage = () => {
       setUser(currentUser);
       let userLikedPosts = [];
       let userFollowingList = [];
-
       if (currentUser) {
-        // Fetch user profile
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
           setUserProfile(userData);
           userLikedPosts = userData.likedPosts || [];
           setLikedPosts(userLikedPosts);
-
-          // Get followingId from user document
           userFollowingList = userData.followingId || [];
-
-          // Get usernames of followed users
           if (userFollowingList.length > 0) {
             const followedUsers = await Promise.all(
               userFollowingList.map((uid) => getDoc(doc(db, "users", uid)))
             );
-
             const followedUsernames = followedUsers
               .filter((doc) => doc.exists())
               .map((doc) => doc.data().username)
               .filter(Boolean);
-
             setFollowingUsernames(followedUsernames);
           }
         } else {
           setUserProfile(null);
         }
       }
-      // Fetch posts
       const postsSnapshot = await getDocs(collection(db, "posts"));
       const postsList = postsSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-      // Fetch all authors' names in one go
       const usernames = Array.from(
         new Set(postsList.map((post) => post.username).filter(Boolean))
       );
       const authorNameMap = {};
       const authorPhotoMap = {};
       if (usernames.length > 0) {
-        // Query all users with usernames in the posts
         const usersSnapshot = await getDocs(collection(db, "users"));
         usersSnapshot.forEach((userDoc) => {
           const data = userDoc.data();
@@ -261,7 +232,6 @@ const DashboardPage = () => {
         });
       }
       setAuthorNames(authorNameMap);
-
       const sortedPosts = postsList
         .map((post) => ({
           ...post,
@@ -271,21 +241,16 @@ const DashboardPage = () => {
           (a, b) =>
             (b.publishedAt?.seconds || 0) - (a.publishedAt?.seconds || 0)
         );
-
       setPosts(sortedPosts);
-
-      // Filter posts for following feed
       const followingPostsList = sortedPosts.filter((post) =>
         followingUsernames?.includes(post.username)
       );
       setFollowingPosts(followingPostsList);
-
       setLoading(false);
     };
     fetchData();
   }, []);
 
-  // Update followingPosts when posts or followingUsernames change
   useEffect(() => {
     if (posts.length > 0 && followingUsernames.length > 0) {
       const filtered = posts.filter((post) =>
@@ -299,9 +264,9 @@ const DashboardPage = () => {
 
   const handleTabClick = (tab) => setActiveTab(tab);
 
-  // Like/unlike logic
   const handleLike = async (postId, isLiked) => {
-    if (!user) return;
+    if (!user || likeLoading[postId]) return;
+    setLikeLoading((prev) => ({ ...prev, [postId]: true }));
     setPosts((prevPosts) =>
       prevPosts.map((post) =>
         post.id === postId
@@ -322,12 +287,12 @@ const DashboardPage = () => {
     try {
       const postRef = doc(db, "posts", postId);
       const userRef = doc(db, "users", user.uid);
-      await Promise.all([
-        updateDoc(postRef, { likes: increment(isLiked ? -1 : 1) }),
-        updateDoc(userRef, {
-          likedPosts: isLiked ? arrayRemove(postId) : arrayUnion(postId),
-        }),
-      ]);
+      const batch = writeBatch(db);
+      batch.update(postRef, { likes: increment(isLiked ? -1 : 1) });
+      batch.update(userRef, {
+        likedPosts: isLiked ? arrayRemove(postId) : arrayUnion(postId),
+      });
+      await batch.commit();
     } catch (err) {
       setPosts((prevPosts) =>
         prevPosts.map((post) =>
@@ -347,10 +312,11 @@ const DashboardPage = () => {
         isLiked ? [...prev, postId] : prev.filter((id) => id !== postId)
       );
       alert("Failed to update like. Please try again later.");
+    } finally {
+      setLikeLoading((prev) => ({ ...prev, [postId]: false }));
     }
   };
 
-  // Helper for pretty date
   const prettyDate = (publishedAt) => {
     if (!publishedAt) return "";
     let dateObj;
@@ -371,7 +337,6 @@ const DashboardPage = () => {
     });
   };
 
-  // Helper to format like counts (e.g., 1.2K, 3.4M)
   const formatLikesCount = (num) => {
     if (num >= 1e6) return (num / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
     if (num >= 1e3) return (num / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
@@ -385,17 +350,10 @@ const DashboardPage = () => {
   const handleRemovePost = async (postId) => {
     if (!window.confirm("Are you sure you want to remove this post?")) return;
     try {
-      // Show loading state
       setLoading(true);
-
-      // Delete document from Firestore
       await deleteDoc(doc(db, "posts", postId));
-
-      // Update both posts arrays in local state
       setPosts((prev) => prev.filter((p) => p.id !== postId));
       setFollowingPosts((prev) => prev.filter((p) => p.id !== postId));
-
-      // Also clear this post from session storage
       const cached = sessionStorage.getItem("postsWindow");
       if (cached) {
         const { posts, lastVisible } = JSON.parse(cached);
@@ -408,11 +366,7 @@ const DashboardPage = () => {
           })
         );
       }
-
-      // Hide loading state
       setLoading(false);
-
-      // Show success message
       alert("Post removed successfully");
     } catch (err) {
       console.error("Error removing post:", err);
@@ -421,15 +375,32 @@ const DashboardPage = () => {
     }
   };
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const openMenuId = Object.keys(menuOpen).find((id) => menuOpen[id]);
+      if (!openMenuId) return;
+      const ref = menuRefs.current[openMenuId];
+      if (ref && !ref.contains(event.target)) {
+        setMenuOpen({});
+      }
+    };
+    if (Object.values(menuOpen).some(Boolean)) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuOpen]);
+
   return (
     <div style={{ display: "flex", height: "100vh" }}>
-      {/* Sidebar */}
       <Sidebar
         userProfile={userProfile}
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
       />
-      {/* Main Content */}
       <main
         className={styles.mainContent}
         style={{
@@ -491,7 +462,6 @@ const DashboardPage = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            {/* Hamburger for mobile */}
             <div
               className={
                 styles.hamburger +
@@ -524,8 +494,6 @@ const DashboardPage = () => {
               #foryou
             </button>
           </div>
-          {/* Feeds */}
-          {/* Only the feed area scrolls for infinite scroll */}
           <div
             className={styles.feed}
             ref={feedRef}
@@ -581,7 +549,6 @@ const DashboardPage = () => {
                         className={styles.post}
                         style={{ position: "relative" }}
                       >
-                        {/* Three dots menu for own posts */}
                         {isOwnPost && (
                           <div
                             style={{
@@ -590,6 +557,7 @@ const DashboardPage = () => {
                               right: 10,
                               zIndex: 2,
                             }}
+                            ref={(el) => (menuRefs.current[post.id] = el)}
                           >
                             <button
                               className={styles.dotsButton}
@@ -614,9 +582,7 @@ const DashboardPage = () => {
                             )}
                           </div>
                         )}
-                        {/* Article-style title on top */}
                         <div className={styles.articleTitle}>{post.title}</div>
-                        {/* Image (if present) */}
                         {hasImage && (
                           <div className={styles.imageWrapper}>
                             <img
@@ -641,7 +607,6 @@ const DashboardPage = () => {
                             />
                           </div>
                         )}
-                        {/* Article-style text content with collapse/expand */}
                         {post.text && (
                           <>
                             <div
@@ -653,7 +618,7 @@ const DashboardPage = () => {
                               style={
                                 !isExpanded
                                   ? {
-                                      maxHeight: "5.8em", // ~4 lines at 1.45em line-height
+                                      maxHeight: "5.8em",
                                       overflow: "hidden",
                                       position: "relative",
                                       WebkitLineClamp: 4,
@@ -663,7 +628,6 @@ const DashboardPage = () => {
                                   : {}
                               }
                             />
-                            {/* Show more/less button if text is long */}
                             <ShowMoreButton
                               postId={post.id}
                               postText={post.text}
@@ -672,7 +636,6 @@ const DashboardPage = () => {
                             />
                           </>
                         )}
-                        {/* Author/date/like row for all posts */}
                         <div
                           className={
                             styles.postFooterIG + " " + styles.textOnlyFooter
@@ -757,7 +720,6 @@ const DashboardPage = () => {
               </motion.div>
             </AnimatePresence>
           </div>
-          {/* Floating Action Button (Pencil) */}
           <button
             className={styles.fab}
             title="New thought"
@@ -785,7 +747,6 @@ const DashboardPage = () => {
   );
 };
 
-// Helper component for Show More/Less button
 function ShowMoreButton({ postId, postText, isExpanded, setExpandedPosts }) {
   const [isLong, setIsLong] = useState(false);
   const ref = useRef();
@@ -794,7 +755,6 @@ function ShowMoreButton({ postId, postText, isExpanded, setExpandedPosts }) {
       setIsLong(ref.current.scrollHeight > ref.current.clientHeight + 2);
     }
   }, [postText]);
-  // Render hidden div to measure height
   return (
     <>
       <div

@@ -15,6 +15,7 @@ import {
   increment,
 } from "firebase/firestore";
 import { useParams } from "react-router-dom";
+import dashboardStyles from "../styles/DashboardPage.module.css";
 
 const PERSON_ICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E";
@@ -31,37 +32,33 @@ const UserProfilePage = () => {
   const [likedPosts, setLikedPosts] = useState([]);
   const { username } = useParams();
 
+  // Real-time listener for current user's profile (for sidebar and like logic)
   useEffect(() => {
-    // Fetch current user's profile for sidebar
     let unsubscribe = null;
-    const fetchCurrentUserProfile = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const userDocRef = doc(db, "users", user.uid);
-        unsubscribe = onSnapshot(userDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setCurrentUserProfile({
-              ...docSnap.data(),
-              uid: docSnap.id, // Ensure uid is included
-            });
-          }
-        });
-      }
-    };
-
-    fetchCurrentUserProfile();
-
+    const user = auth.currentUser;
+    if (user) {
+      const userDocRef = doc(db, "users", user.uid);
+      unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setCurrentUserProfile({
+            ...docSnap.data(),
+            uid: docSnap.id,
+          });
+          setLikedPosts(docSnap.data().likedPosts || []);
+        }
+      });
+    }
     return () => {
       if (unsubscribe) unsubscribe();
     };
   }, []);
 
+  // Real-time listener for viewed user's profile and posts
   useEffect(() => {
     let unsubUserProfile = null;
     let unsubUserPosts = null;
-
+    setLoading(true);
     const fetchProfileAndPosts = async () => {
-      setLoading(true);
       // Fetch user by username
       const usersQuery = query(
         collection(db, "users"),
@@ -71,20 +68,18 @@ const UserProfilePage = () => {
       if (!usersSnapshot.empty) {
         const userDoc = usersSnapshot.docs[0];
         const userDocRef = doc(db, "users", userDoc.id);
-
-        // Set up real-time listener for the viewed user
+        // Real-time listener for the viewed user
         unsubUserProfile = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
             setUserProfile({
               ...data,
-              uid: docSnap.id, // Ensure uid is included
+              uid: docSnap.id,
             });
             setFollowers(data.followersId || []);
           }
         });
-
-        // Fetch posts by this user
+        // Real-time listener for posts by this user
         const postsQuery = query(
           collection(db, "posts"),
           where("username", "==", username)
@@ -102,12 +97,10 @@ const UserProfilePage = () => {
       }
       setLoading(false);
     };
-
     fetchProfileAndPosts();
-
     return () => {
-      unsubUserProfile?.();
-      unsubUserPosts?.();
+      if (unsubUserProfile) unsubUserProfile();
+      if (unsubUserPosts) unsubUserPosts();
     };
   }, [username]);
 
@@ -120,31 +113,6 @@ const UserProfilePage = () => {
       setIsFollowing(isUserFollowed);
     }
   }, [currentUserProfile, userProfile]);
-
-  // Fetch likedPosts for current user
-  useEffect(() => {
-    const fetchLikedPosts = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const userDoc = await getDocs(
-          query(collection(db, "users"), where("uid", "==", user.uid))
-        );
-        if (!userDoc.empty) {
-          const data = userDoc.docs[0].data();
-          setLikedPosts(data.likedPosts || []);
-        } else {
-          // fallback for direct doc fetch
-          const docSnap = await getDocs(
-            query(collection(db, "users"), where("uid", "==", user.uid))
-          );
-          if (!docSnap.empty) {
-            setLikedPosts(docSnap.docs[0].data().likedPosts || []);
-          }
-        }
-      }
-    };
-    fetchLikedPosts();
-  }, []);
 
   const handleFollow = async () => {
     if (!userProfile?.uid || !currentUserProfile?.uid || isTransitioning) {
@@ -307,7 +275,9 @@ const UserProfilePage = () => {
               </div>
               <div className={styles.statBox}>
                 <span className={styles.statNumber}>
-                  {userProfile.likedPosts ? userProfile.likedPosts.length : 0}
+                  {userProfile && userProfile.likedPosts
+                    ? userProfile.likedPosts.length
+                    : 0}
                 </span>
                 <span className={styles.statLabel}>Favourite Posts</span>
               </div>
@@ -343,16 +313,47 @@ const UserProfilePage = () => {
                 const isLiked = likedPosts.includes(post.id);
                 return (
                   <div key={post.id} className={styles.postCard}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        width: "100%",
+                        minHeight: 32,
+                      }}
+                    >
+                      <div className={styles.postTitle} style={{ margin: 0 }}>
+                        {post.title}
+                      </div>
+                      <span className={styles.dateMeta}>
+                        {post.publishedAt?.seconds
+                          ? new Date(
+                              post.publishedAt.seconds * 1000
+                            ).toLocaleDateString()
+                          : ""}
+                      </span>
+                    </div>
                     {post.photoURL && (
-                      <img
-                        src={post.photoURL}
-                        alt={post.title}
-                        className={styles.postImage}
-                        loading="lazy"
-                        decoding="async"
-                      />
+                      <div className={dashboardStyles.imageWrapper}>
+                        <img
+                          className={dashboardStyles.postImage}
+                          src={post.photoURL}
+                          alt={post.title}
+                          loading="lazy"
+                          decoding="async"
+                          width={600}
+                          height={340}
+                          srcSet={
+                            post.photoURL
+                              ? `${post.photoURL} 1x, ${post.photoURL.replace(
+                                  "/upload/",
+                                  "/upload/w_1200/"
+                                )} 2x`
+                              : undefined
+                          }
+                        />
+                      </div>
                     )}
-                    <div className={styles.postTitle}>{post.title}</div>
                     <div
                       className={styles.postContent}
                       dangerouslySetInnerHTML={{
@@ -361,7 +362,18 @@ const UserProfilePage = () => {
                           (post.text?.length > 120 ? "..." : ""),
                       }}
                     />
-                    <div className={styles.postMetaRow}>
+                    <div
+                      className={styles.postMetaRow}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        width: "100%",
+                      }}
+                    >
+                      <span style={{ opacity: 0.6, fontSize: "0.98em" }}>
+                        @{post.username}
+                      </span>
                       <button
                         className={
                           styles.likeButton +
@@ -378,13 +390,6 @@ const UserProfilePage = () => {
                       >
                         {isLiked ? "❤️" : "🤍"} {post.likes || 0}
                       </button>
-                      <span className={styles.dateMeta}>
-                        {post.publishedAt?.seconds
-                          ? new Date(
-                              post.publishedAt.seconds * 1000
-                            ).toLocaleDateString()
-                          : ""}
-                      </span>
                     </div>
                   </div>
                 );

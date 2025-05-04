@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import styles from "../styles/AccountPage.module.css";
 import Sidebar from "./Sidebar";
 import { auth, db } from "../firebase";
@@ -14,8 +14,10 @@ import {
   arrayUnion,
   arrayRemove,
   deleteDoc,
+  onSnapshot,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import dashboardStyles from "../styles/DashboardPage.module.css";
 
 const PERSON_ICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E";
@@ -25,41 +27,72 @@ const AccountPage = () => {
   const [userPosts, setUserPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [likedPosts, setLikedPosts] = useState([]);
+  const [followers, setFollowers] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState({});
   const navigate = useNavigate();
+  const menuRefs = useRef({});
 
   useEffect(() => {
-    const fetchProfileAndPosts = async () => {
-      setLoading(true);
-      const user = auth.currentUser;
-      if (!user) {
-        navigate("/register");
-        return;
-      }
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        setUserProfile(userDoc.data());
-        setLikedPosts(userDoc.data().likedPosts || []);
-        // Fetch posts by this user
+    let unsubUser = null;
+    let unsubPosts = null;
+    setLoading(true);
+    const user = auth.currentUser;
+    if (!user) {
+      navigate("/register");
+      return;
+    }
+    const userDocRef = doc(db, "users", user.uid);
+    unsubUser = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setUserProfile(data);
+        setLikedPosts(data.likedPosts || []);
+        setFollowers(data.followersId || []);
+        // Listen to posts by this user
         const postsQuery = query(
           collection(db, "posts"),
-          where("username", "==", userDoc.data().username)
+          where("username", "==", data.username)
         );
-        const postsSnapshot = await getDocs(postsQuery);
-        setUserPosts(
-          postsSnapshot.docs
-            .map((doc) => ({ id: doc.id, ...doc.data() }))
-            .sort(
-              (a, b) =>
-                (b.publishedAt?.seconds || 0) - (a.publishedAt?.seconds || 0)
-            )
-        );
+        if (unsubPosts) unsubPosts();
+        unsubPosts = onSnapshot(postsQuery, (snapshot) => {
+          setUserPosts(
+            snapshot.docs
+              .map((doc) => ({ id: doc.id, ...doc.data() }))
+              .sort(
+                (a, b) =>
+                  (b.publishedAt?.seconds || 0) - (a.publishedAt?.seconds || 0)
+              )
+          );
+        });
       }
       setLoading(false);
+    });
+    return () => {
+      if (unsubUser) unsubUser();
+      if (unsubPosts) unsubPosts();
     };
-    fetchProfileAndPosts();
   }, [navigate]);
+
+  // Close menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const openMenuId = Object.keys(menuOpen).find((id) => menuOpen[id]);
+      if (!openMenuId) return;
+      const ref = menuRefs.current[openMenuId];
+      if (ref && !ref.contains(event.target)) {
+        setMenuOpen({});
+      }
+    };
+    if (Object.values(menuOpen).some(Boolean)) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuOpen]);
 
   // Like/unlike logic for account page
   const handleLike = async (postId, isLiked) => {
@@ -101,7 +134,11 @@ const AccountPage = () => {
 
   // Toggle post menu
   const handleMenuToggle = (postId) => {
-    setMenuOpen((prev) => ({ ...prev, [postId]: !prev[postId] }));
+    setMenuOpen((prev) => {
+      const isOpen = prev[postId];
+      // Only one menu open at a time
+      return isOpen ? {} : { [postId]: true };
+    });
   };
 
   // Handle post removal
@@ -185,13 +222,11 @@ const AccountPage = () => {
                 <span className={styles.statLabel}>Posts</span>
               </div>
               <div className={styles.statBox}>
-                <span className={styles.statNumber}>0</span>
+                <span className={styles.statNumber}>{followers.length}</span>
                 <span className={styles.statLabel}>Followers</span>
               </div>
               <div className={styles.statBox}>
-                <span className={styles.statNumber}>
-                  {userProfile.likedPosts ? userProfile.likedPosts.length : 0}
-                </span>
+                <span className={styles.statNumber}>{likedPosts.length}</span>
                 <span className={styles.statLabel}>Favourite Posts</span>
               </div>
             </div>
@@ -205,65 +240,78 @@ const AccountPage = () => {
             <div className={styles.postsGrid}>
               {userPosts.map((post) => {
                 const isLiked = likedPosts.includes(post.id);
+                const hasImage = Boolean(post.photoURL);
                 return (
                   <div key={post.id} className={styles.postCard}>
-                    {/* Three dots menu for post options */}
-                    <div className={styles.postOptionsMenu}>
-                      <button
-                        className={styles.dotsButton}
-                        onClick={() => handleMenuToggle(post.id)}
-                        aria-label="Post options"
-                      >
-                        ⋮
-                      </button>
-                      {menuOpen[post.id] && (
-                        <div className={styles.postMenuDropdown}>
-                          <button onClick={() => alert("Edit coming soon!")}>
-                            Edit
-                          </button>
-                          <button onClick={() => handleRemovePost(post.id)}>
-                            Remove
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {post.photoURL && (
-                      <img
-                        src={post.photoURL}
-                        alt={post.title}
-                        className={styles.postImage}
-                        loading="lazy"
-                        decoding="async"
-                        style={{ cursor: "pointer" }}
-                        onClick={() => {
-                          if (
-                            userProfile &&
-                            post.username === userProfile.username
-                          ) {
-                            navigate("/account");
-                          } else {
-                            navigate(`/user/${post.username}`);
-                          }
-                        }}
-                      />
-                    )}
-                    <span
-                      className={styles.authorNameIG}
-                      onClick={() => {
-                        if (
-                          userProfile &&
-                          post.username === userProfile.username
-                        ) {
-                          navigate("/account");
-                        } else {
-                          navigate(`/user/${post.username}`);
-                        }
+                    {/* Row with title and 3-dot menu */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        width: "100%",
+                        minHeight: 32,
                       }}
-                      style={{ cursor: "pointer", marginBottom: 4 }}
                     >
-                      {post.username}
-                    </span>
-                    <div className={styles.postTitle}>{post.title}</div>
+                      <div className={styles.postTitle} style={{ margin: 0 }}>
+                        {post.title}
+                      </div>
+                      <div
+                        className={styles.postOptionsMenu}
+                        ref={(el) => (menuRefs.current[post.id] = el)}
+                        style={{ position: "relative", top: 0, right: 0 }}
+                      >
+                        <button
+                          className={styles.dotsButton}
+                          onClick={() => handleMenuToggle(post.id)}
+                          aria-label="Post options"
+                        >
+                          ⋮
+                        </button>
+                        {menuOpen[post.id] && (
+                          <div className={styles.postMenuDropdown}>
+                            <button onClick={() => alert("Edit coming soon!")}>
+                              Edit
+                            </button>
+                            <button onClick={() => handleRemovePost(post.id)}>
+                              Remove
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {hasImage && (
+                      <div className={dashboardStyles.imageWrapper}>
+                        <img
+                          className={dashboardStyles.postImage}
+                          src={post.photoURL}
+                          alt={post.title}
+                          loading="lazy"
+                          decoding="async"
+                          width={600}
+                          height={340}
+                          srcSet={
+                            post.photoURL
+                              ? `${post.photoURL} 1x, ${post.photoURL.replace(
+                                  "/upload/",
+                                  "/upload/w_1200/"
+                                )} 2x`
+                              : undefined
+                          }
+                          style={{ cursor: "pointer" }}
+                          onClick={() => {
+                            if (
+                              userProfile &&
+                              post.username === userProfile.username
+                            ) {
+                              navigate("/account");
+                            } else {
+                              navigate(`/user/${post.username}`);
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
                     <div
                       className={styles.postContent}
                       dangerouslySetInnerHTML={{
