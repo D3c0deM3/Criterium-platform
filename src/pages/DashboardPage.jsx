@@ -613,33 +613,10 @@ const DashboardPage = () => {
                           </div>
                         )}
                         {post.text && (
-                          <>
-                            <div
-                              className={
-                                styles.articleText +
-                                (!isExpanded ? " " + styles.collapsedText : "")
-                              }
-                              dangerouslySetInnerHTML={{ __html: post.text }}
-                              style={
-                                !isExpanded
-                                  ? {
-                                      maxHeight: "5.8em",
-                                      overflow: "hidden",
-                                      position: "relative",
-                                      WebkitLineClamp: 4,
-                                      display: "-webkit-box",
-                                      WebkitBoxOrient: "vertical",
-                                    }
-                                  : {}
-                              }
-                            />
-                            <ShowMoreButton
-                              postId={post.id}
-                              postText={post.text}
-                              isExpanded={isExpanded}
-                              setExpandedPosts={setExpandedPosts}
-                            />
-                          </>
+                          <div
+                            className={styles.articleText}
+                            dangerouslySetInnerHTML={{ __html: post.text }}
+                          />
                         )}
                         <div
                           className={
@@ -746,52 +723,5 @@ const DashboardPage = () => {
     </div>
   );
 };
-
-function ShowMoreButton({ postId, postText, isExpanded, setExpandedPosts }) {
-  const [isLong, setIsLong] = useState(false);
-  const ref = useRef();
-  useEffect(() => {
-    if (ref.current) {
-      setIsLong(ref.current.scrollHeight > ref.current.clientHeight + 2);
-    }
-  }, [postText]);
-  return (
-    <>
-      <div
-        ref={ref}
-        style={{
-          position: "absolute",
-          visibility: "hidden",
-          height: "auto",
-          maxHeight: "none",
-          overflow: "visible",
-          whiteSpace: "normal",
-          pointerEvents: "none",
-          zIndex: -1,
-          width: "100%",
-        }}
-        dangerouslySetInnerHTML={{ __html: postText }}
-      />
-      {isLong && (
-        <button
-          className={styles.showMoreBtn}
-          onClick={() =>
-            setExpandedPosts((prev) => ({ ...prev, [postId]: !isExpanded }))
-          }
-          style={{
-            marginTop: 4,
-            color: "#344955",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontWeight: 500,
-          }}
-        >
-          {isExpanded ? "Show less" : "Show more"}
-        </button>
-      )}
-    </>
-  );
-}
 
 export default DashboardPage;

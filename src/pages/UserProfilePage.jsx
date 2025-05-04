@@ -357,9 +357,7 @@ const UserProfilePage = () => {
                     <div
                       className={styles.postContent}
                       dangerouslySetInnerHTML={{
-                        __html:
-                          post.text?.slice(0, 120) +
-                          (post.text?.length > 120 ? "..." : ""),
+                        __html: post.text,
                       }}
                     />
                     <div

@@ -23,6 +23,8 @@ const PostCreatePage = () => {
     bullet: false,
   });
   const [imageUploading, setImageUploading] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -88,15 +90,38 @@ const PostCreatePage = () => {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       const userData = userDoc.data();
       const postId = Date.now().toString();
-      // Extract first image as photoURL, remove it from content
       let content = contentEditableRef.current.innerHTML;
       let photoURL = null;
       let cleanedContent = content;
-      const imgMatch = content.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/i);
-      if (imgMatch) {
-        photoURL = imgMatch[1];
-        // Remove only the first <img ...> tag
-        cleanedContent = content.replace(imgMatch[0], "");
+      // If an image file is selected, upload to Cloudinary
+      if (imageFile) {
+        setImageUploading(true);
+        const formData = new FormData();
+        formData.append("file", imageFile);
+        formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+        const res = await fetch(CLOUDINARY_UPLOAD_URL, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        setImageUploading(false);
+        if (data.secure_url) {
+          photoURL = data.secure_url;
+        } else {
+          alert(
+            "Image upload failed: " + (data.error?.message || "Unknown error")
+          );
+          setSubmitting(false);
+          return;
+        }
+        // Remove the preview image from the content
+        cleanedContent = cleanedContent.replace(
+          /<img[^>]*src=["']([^"']+)["'][^>]*>/i,
+          ""
+        );
+      } else {
+        // Remove any <img> tags if present (shouldn't be, but for safety)
+        cleanedContent = cleanedContent.replace(/<img[^>]*>/gi, "");
       }
       await setDoc(doc(db, "posts", postId), {
         id: postId,
@@ -107,6 +132,12 @@ const PostCreatePage = () => {
         likes: 0,
         publishedAt: serverTimestamp(),
       });
+      // Clean up preview URL
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+        setImagePreviewUrl(null);
+      }
+      setImageFile(null);
       navigate("/dashboard");
     } catch (error) {
       alert("Failed to publish post. Please try again later.");
@@ -122,50 +153,45 @@ const PostCreatePage = () => {
     setTimeout(updateFormatState, 0);
   };
 
-  // Image upload handler
-  const handleImageUpload = async (e) => {
+  // Image upload handler (for preview only, not Cloudinary upload)
+  const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    setImageUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-    try {
-      const res = await fetch(CLOUDINARY_UPLOAD_URL, {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.secure_url) {
-        // Only insert image after successful upload
-        const sel = window.getSelection();
-        if (sel && sel.rangeCount > 0) {
-          const img = document.createElement("img");
-          img.src = data.secure_url;
-          img.alt = "uploaded";
-          img.className = "editorImage";
-          img.style.maxWidth = "100%";
-          const range = sel.getRangeAt(0);
-          range.insertNode(img);
-          // Insert a space after the image and move cursor there
-          const space = document.createTextNode(" ");
-          img.after(space);
-          // Move cursor after the space node
-          range.setStartAfter(space);
-          range.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
+    // Remove any existing image in the editor
+    const editor = contentEditableRef.current;
+    if (editor) {
+      // Remove all <img> tags
+      editor.innerHTML = editor.innerHTML.replace(/<img[^>]*>/gi, "");
+    }
+    // Revoke previous preview URL if any
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+    setImageFile(file);
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreviewUrl(previewUrl);
+    // Insert preview image at cursor or at the end
+    if (editor) {
+      const img = document.createElement("img");
+      img.src = previewUrl;
+      img.alt = "preview";
+      img.className = "editorImage";
+      img.style.maxWidth = "100%";
+      // Insert at cursor or append
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+        const range = sel.getRangeAt(0);
+        range.insertNode(img);
+        // Insert a space after the image and move cursor there
+        const space = document.createTextNode(" ");
+        img.after(space);
+        range.setStartAfter(space);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
       } else {
-        // Show Cloudinary error message if available
-        alert(
-          "Image upload failed: " + (data.error?.message || "Unknown error")
-        );
+        editor.appendChild(img);
       }
-    } catch (err) {
-      alert("Image upload failed: " + err.message);
-    } finally {
-      setImageUploading(false);
     }
   };
 
