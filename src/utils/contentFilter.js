@@ -39,6 +39,7 @@ function buildBannedWordRegex(word) {
     cum: "c[uüûU*][m*]",
     sex: "s[e3*][x*]",
     nigger: "n[i1!|*][g9*][g9*][e3*][r*]",
+    nigga: "n[i1!|*][g9*][g9*][a*]",
     ass: "[a@4*][s$5*][s$5*]",
     shit: "[s$5*][h*][i1!|*][t7*]",
   };
@@ -46,7 +47,7 @@ function buildBannedWordRegex(word) {
   // Use special case pattern if available
   if (specialCases[word.toLowerCase()]) {
     return new RegExp(
-      `(?:^|\\W)(${specialCases[word.toLowerCase()]})[\\s._\\-*]*(?:\\W|$)`,
+      `\\b(${specialCases[word.toLowerCase()]})[\\s._\\-*]*\\b`,
       "gi"
     );
   }
@@ -59,8 +60,8 @@ function buildBannedWordRegex(word) {
     pattern += `${sub}[\\s._\\-*]*`;
   }
 
-  // Match only if surrounded by non-word characters or string boundaries
-  return new RegExp(`(?:^|\\W)(${pattern})(?:\\W|$)`, "gi");
+  // Match with word boundaries
+  return new RegExp(`\\b(${pattern})[\\s._\\-*]*\\b`, "gi");
 }
 
 // Improved list of banned words (plain, not regex)
@@ -68,10 +69,46 @@ const bannedWordList = [
   "sex",
   "fuck",
   "nigger",
+  "nigga",
   "ass",
   "shit",
   "cum",
   "lox",
+  "loximtir",
+  "o'le",
+  "yiban",
+  "blat",
+  "bla",
+  "dalbayob",
+  "dalban",
+  "po'q",
+  "bo'q",
+  "puq",
+  "buq",
+  "skay",
+  "seks",
+  "seksual",
+  "seksualniy",
+  "negir",
+  "negirsan",
+  "negirsila",
+  "qo'toq",
+  "qotoq",
+  "qotoqbosh",
+  "qo'toqbosh",
+  "qo'tobosh",
+  "qotobosh",
+  "bich",
+  "bichsan",
+  "cho'choq",
+  "cho'choqbosh",
+  "cho'choqcha",
+  "yobnuti",
+  "sassiq",
+  "qasd",
+  "qast",
+  "o'ldir",
+  "o'ldirish",
   "porn",
   "dick",
   "pussy",
@@ -227,7 +264,6 @@ const bannedWordList = [
   "corrupt",
   "scam",
   "fraud",
-  "nigga",
   "cheat",
   "embezzle",
   "forgery",
@@ -236,7 +272,6 @@ const bannedWordList = [
   "negr",
   "nig",
 ];
-
 // Build regexes for all banned words
 const bannedWordRegexes = bannedWordList.map((word) => ({
   word,
@@ -441,27 +476,31 @@ function detectBannedWords(text, options = {}) {
   }
 
   const problematicPatterns = [
-    { pattern: /[f][uüûU][\s._\-*]*[c(][\s._\-*]*[k]/i, word: "fuck" },
-    { pattern: /[p][o0][\s._\-*]*[r][\s._\-*]*[n]/i, word: "porn" },
-    { pattern: /[n][e3][\s._\-*]*[g9][\s._\-*]*[r]/i, word: "negr" },
-    { pattern: /[s][h][\s._\-*]*[i1!|][\s._\-*]*[t7]/i, word: "shit" },
-    { pattern: /[d][i1!|][\s._\-*]*[c(][\s._\-*]*[k]/i, word: "dick" },
+    { pattern: /\b[f][uüûU][\s._\-*]*[c(][\s._\-*]*[k]\b/i, word: "fuck" },
+    { pattern: /\b[p][o0][\s._\-*]*[r][\s._\-*]*[n]\b/i, word: "porn" },
+    { pattern: /\b[n][e3][\s._\-*]*[g9][\s._\-*]*[r]\b/i, word: "negr" },
+    { pattern: /\b[s][h][\s._\-*]*[i1!|][\s._\-*]*[t7]\b/i, word: "shit" },
+    { pattern: /\b[d][i1!|][\s._\-*]*[c(][\s._\-*]*[k]\b/i, word: "dick" },
     {
-      pattern: /[b][o0][\s._\-*]*[o0][\s._\-*]*b[\s._\-*]*[s5]/i,
+      pattern: /\b[b][o0][\s._\-*]*[o0][\s._\-*]*b[\s._\-*]*[s5]\b/i,
       word: "boobs",
     },
-    { pattern: /[c][uüûU][\s._\-*]*[m]/i, word: "cum" },
+    { pattern: /\b[c][uüûU][\s._\-*]*[m]\b/i, word: "cum" },
     { pattern: /\b[a@4][\s._\-*]*[s$5][\s._\-*]*[s$5]\b/i, word: "ass" },
     {
-      pattern: /[p][uü][\s._\-*]*[s$5][\s._\-*]*[s$5][\s._\-*]*[y]/i,
+      pattern: /\b[p][uü][\s._\-*]*[s$5][\s._\-*]*[s$5][\s._\-*]*[y]\b/i,
       word: "pussy",
     },
     {
       pattern:
-        /[n][i1!|][\s._\-*]*[g9][\s._\-*]*[g9][\s._\-*]*[e3][\s._\-*]*[r]/i,
+        /\b[n][i1!|][\s._\-*]*[g9][\s._\-*]*[g9][\s._\-*]*[e3][\s._\-*]*[r]\b/i,
       word: "nigger",
     },
-    { pattern: /[s][e3][\s._\-*]*[x]/i, word: "sex" },
+    {
+      pattern: /\b[n][i1!|][\s._\-*]*[g9][\s._\-*]*[g9][\s._\-*]*[a]\b/i,
+      word: "nigga",
+    },
+    { pattern: /\b[s][e3][\s._\-*]*[x]\b/i, word: "sex" },
     { pattern: /\b[n][i1!|][\s._\-*]*[g9]\b/i, word: "nig" },
   ];
 
@@ -693,8 +732,16 @@ function testContentFilter() {
     // Additional test cases for "nig"
     "The night sky is beautiful",
     "Nigeria is a vibrant country",
-    // New test case for standalone "ass"
+    // Test case for standalone "ass"
     "ass assalomu aleykum",
+    // New test cases for concatenated words
+    "Fuckyou",
+    "fuckyou",
+    "asshole",
+    "n1gga",
+    "shitstorm",
+    // False positive test for similar words
+    "refuse to comply",
   ];
 
   console.log("===== IMPROVED CONTENT FILTER TEST =====");
@@ -715,7 +762,7 @@ function testContentFilter() {
 }
 
 // Demo usage
-testContentFilter();
+// testContentFilter();
 
 // Main filtering function for export
 export function containsBannedWords(text, options = {}) {

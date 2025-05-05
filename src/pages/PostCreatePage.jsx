@@ -128,6 +128,35 @@ const PostCreatePage = () => {
       });
       return;
     }
+    // Perspective API moderation check (after banned words check)
+    try {
+      const moderationRes = await fetch(
+        "https://content-moderation-server.onrender.com/moderate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: plainText }),
+        }
+      );
+      const moderationData = await moderationRes.json();
+      if (moderationData.flagged) {
+        setAlertInfo({
+          word: null,
+          message:
+            "Your post contains content that is considered toxic or inappropriate by our moderation system. Please revise and try again.",
+        });
+        setSubmitting(false);
+        return;
+      }
+    } catch (err) {
+      setAlertInfo({
+        word: null,
+        message:
+          "Content moderation service is unavailable. Please try again later.",
+      });
+      setSubmitting(false);
+      return;
+    }
     setSubmitting(true);
     try {
       // Moderation check (stricter)

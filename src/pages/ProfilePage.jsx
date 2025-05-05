@@ -29,6 +29,7 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(false);
   const [usernameError, setUsernameError] = useState("");
   const [checkingProfile, setCheckingProfile] = useState(true);
+  const [alertInfo, setAlertInfo] = useState(null);
   const profilePicInputRef = useRef();
   const navigate = useNavigate();
 
@@ -104,9 +105,44 @@ const ProfilePage = () => {
       containsBannedWords(bio)
     ) {
       setLoading(false);
-      alert(
-        "Your profile contains inappropriate or banned words. Please revise and try again."
+      setAlertInfo({
+        word: null,
+        message:
+          "Your profile contains inappropriate or banned words. Please revise and try again.",
+      });
+      return;
+    }
+    // Perspective API moderation check (after banned words check)
+    try {
+      const moderationRes = await fetch(
+        "https://content-moderation-server.onrender.com/moderate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: username + "\n" + firstName + "\n" + lastName + "\n" + bio,
+          }),
+        }
       );
+      const moderationData = await moderationRes.json();
+      if (moderationData.flagged) {
+        setUsernameError("");
+        setAlertInfo({
+          word: null,
+          message:
+            "Your profile contains content that is considered toxic or inappropriate by our moderation system. Please revise and try again.",
+        });
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      setUsernameError("");
+      setAlertInfo({
+        word: null,
+        message:
+          "Content moderation service is unavailable. Please try again later.",
+      });
+      setLoading(false);
       return;
     }
     const user = auth.currentUser;
@@ -244,6 +280,86 @@ const ProfilePage = () => {
             value={bio}
             onChange={(e) => setBio(e.target.value)}
           />
+          {alertInfo && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 2000,
+                background: "rgba(0,0,0,0.15)",
+              }}
+            >
+              <div
+                style={{
+                  background: "#fff3cd",
+                  color: "#856404",
+                  border: "1px solid #ffeeba",
+                  borderRadius: 8,
+                  padding: "28px 32px 20px 56px",
+                  minWidth: 260,
+                  maxWidth: 400,
+                  fontWeight: 500,
+                  boxShadow: "0 2px 16px rgba(0,0,0,0.13)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  position: "relative",
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 22,
+                    top: 28,
+                    fontSize: 22,
+                    color: "#e0a800",
+                  }}
+                >
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#e0a800"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <circle cx="12" cy="16" r="1" />
+                  </svg>
+                </span>
+                <span
+                  style={{ marginLeft: 20, marginBottom: 16, marginTop: 2 }}
+                >
+                  {alertInfo.message}
+                </span>
+                <button
+                  style={{
+                    alignSelf: "flex-end",
+                    background: "#344955",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "8px 28px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                  onClick={() => setAlertInfo(null)}
+                  type="button"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
           <button type="submit" className={styles.saveBtn} disabled={loading}>
             {loading ? "Saving..." : "Save"}
           </button>

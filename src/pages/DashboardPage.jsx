@@ -127,6 +127,7 @@ const DashboardPage = () => {
   const [expandedPosts, setExpandedPosts] = useState({}); // Track expanded/collapsed state
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [editModalPost, setEditModalPost] = useState(null);
+  const [alertInfo, setAlertInfo] = useState(null);
 
   useEffect(() => {
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
@@ -472,6 +473,32 @@ const DashboardPage = () => {
         alert(
           "Your post contains content that is not allowed (politically sensitive or inappropriate). Please revise and try again."
         );
+        setSubmittingEdit(false);
+        return;
+      }
+      // Perspective API moderation check (after banned words check)
+      try {
+        const moderationRes = await fetch("https://content-moderation-server.onrender.com/moderate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: plainText }),
+        });
+        const moderationData = await moderationRes.json();
+        if (moderationData.flagged) {
+          setAlertInfo({
+            word: null,
+            message:
+              "Your post contains content that is considered toxic or inappropriate by our moderation system. Please revise and try again.",
+          });
+          setSubmittingEdit(false);
+          return;
+        }
+      } catch (err) {
+        setAlertInfo({
+          word: null,
+          message:
+            "Content moderation service is unavailable. Please try again later.",
+        });
         setSubmittingEdit(false);
         return;
       }
