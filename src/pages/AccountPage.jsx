@@ -22,13 +22,14 @@ import PostEditor, { Modal } from "../components/PostEditor.jsx";
 import profileStyles from "../styles/ProfilePage.module.css";
 import { containsBannedWords } from "../utils/contentFilter";
 import { isImageSafe } from "../utils/imageContentChecker";
+import {
+  CLOUDINARY_UPLOAD_URL,
+  CLOUDINARY_POST_IMAGE_UPLOAD_PRESET,
+  CLOUDINARY_CLOUD_NAME,
+} from "../constants";
 
 const PERSON_ICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E";
-
-const CLOUDINARY_CLOUD_NAME = "dn6uypx98";
-const CLOUDINARY_UPLOAD_PRESET = "profile_pics";
-const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
 const PencilIcon = (props) => (
   <svg
@@ -46,6 +47,36 @@ const PencilIcon = (props) => (
     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19.5 3 21l1.5-4L16.5 3.5z" />
   </svg>
 );
+
+async function deleteImageFromCloudinary(imageUrl) {
+  if (!imageUrl) return;
+  try {
+    const matches = imageUrl.match(/\/([^/]+)\.(jpg|jpeg|png|gif|webp)$/i);
+    if (!matches) return;
+    const publicId = matches[1];
+    await fetch(
+      `https://content-moderation-server.onrender.com/delete-image?public_id=${encodeURIComponent(
+        "post_images/" + publicId
+      )}`,
+      { method: "DELETE" }
+    );
+  } catch (err) {}
+}
+
+async function deleteProfilePicFromCloudinary(imageUrl) {
+  if (!imageUrl) return;
+  try {
+    const matches = imageUrl.match(/\/([^/]+)\.(jpg|jpeg|png|gif|webp)$/i);
+    if (!matches) return;
+    const publicId = matches[1];
+    await fetch(
+      `https://content-moderation-server.onrender.com/delete-image?public_id=${encodeURIComponent(
+        "profile_pics/" + publicId
+      )}`,
+      { method: "DELETE" }
+    );
+  } catch (err) {}
+}
 
 function EditProfileModal({ open, onClose, userProfile, onSave }) {
   const [profilePic, setProfilePic] = useState(
@@ -170,7 +201,12 @@ function EditProfileModal({ open, onClose, userProfile, onSave }) {
     }
     // Upload image if present
     let photoURL = profilePic;
+    let oldPhotoURL = userProfile.photoURL;
     if (profilePicFile) {
+      // If replacing, delete old profile pic (not default)
+      if (oldPhotoURL && !oldPhotoURL.includes("via.placeholder.com")) {
+        await deleteProfilePicFromCloudinary(oldPhotoURL);
+      }
       const formData = new FormData();
       formData.append("file", profilePicFile);
       formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
@@ -529,6 +565,10 @@ const AccountPage = () => {
 
   // Handle post removal
   const handleRemovePost = async (postId) => {
+    const post = userPosts.find((p) => p.id === postId);
+    if (post && post.photoURL) {
+      await deleteImageFromCloudinary(post.photoURL);
+    }
     if (!window.confirm("Are you sure you want to remove this post?")) return;
     try {
       setLoading(true);

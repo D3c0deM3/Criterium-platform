@@ -1,6 +1,10 @@
 import React, { useState, useRef, useLayoutEffect } from "react";
 import styles from "../styles/PostCreatePage.module.css";
-import { CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "../constants";
+import {
+  CLOUDINARY_UPLOAD_URL,
+  CLOUDINARY_UPLOAD_PRESET,
+  CLOUDINARY_POST_IMAGE_UPLOAD_PRESET,
+} from "../constants";
 import { containsBannedWords, bannedWords } from "../utils/contentFilter";
 import { isImageSafe } from "../utils/imageContentChecker";
 
@@ -130,6 +134,21 @@ const PostEditor = ({
   // Remove all <img> tags from content
   const removeImagesFromContent = (html) => html.replace(/<img[^>]*>/gi, "");
 
+  // Helper to delete old post image from Cloudinary
+  async function deletePostImageFromCloudinary(imageUrl) {
+    if (!imageUrl) return;
+    try {
+      const matches = imageUrl.match(/\/([^/]+)\.(jpg|jpeg|png|gif|webp)$/i);
+      if (!matches) return;
+      const publicId = matches[1];
+      await fetch(
+        `https://content-moderation-server.onrender.com/delete-image?public_id=` +
+          encodeURIComponent("post_images/" + publicId),
+        { method: "DELETE" }
+      );
+    } catch (err) {}
+  }
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -202,10 +221,14 @@ const PostEditor = ({
     let cleanedContent = contentEditableRef.current.innerHTML;
     // If a new image is selected, upload to Cloudinary
     if (imageFile) {
+      // Delete old image if it exists and is not a blob (Cloudinary image)
+      if (initialImage && !initialImage.startsWith("blob:")) {
+        await deletePostImageFromCloudinary(initialImage);
+      }
       setImageUploading(true);
       const formData = new FormData();
       formData.append("file", imageFile);
-      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+      formData.append("upload_preset", CLOUDINARY_POST_IMAGE_UPLOAD_PRESET);
       const res = await fetch(CLOUDINARY_UPLOAD_URL, {
         method: "POST",
         body: formData,
@@ -224,6 +247,9 @@ const PostEditor = ({
       cleanedContent = removeImagesFromContent(cleanedContent);
     } else if (!imagePreviewUrl) {
       // If image was removed
+      if (initialImage && !initialImage.startsWith("blob:")) {
+        await deletePostImageFromCloudinary(initialImage);
+      }
       photoURL = null;
       cleanedContent = removeImagesFromContent(cleanedContent);
     }
