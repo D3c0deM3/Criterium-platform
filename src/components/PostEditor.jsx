@@ -2,6 +2,7 @@ import React, { useState, useRef, useLayoutEffect } from "react";
 import styles from "../styles/PostCreatePage.module.css";
 import { CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "../constants";
 import { containsBannedWords, bannedWords } from "../utils/contentFilter";
+import { isImageSafe } from "../utils/imageContentChecker";
 
 export const Modal = ({ open, onClose, children }) => {
   React.useEffect(() => {
@@ -129,9 +130,22 @@ const PostEditor = ({
   // Remove all <img> tags from content
   const removeImagesFromContent = (html) => html.replace(/<img[^>]*>/gi, "");
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    setImageFile(null);
+    setImagePreviewUrl(null);
+    setImageUploading(true);
+    const safe = await isImageSafe(file);
+    setImageUploading(false);
+    if (!safe) {
+      setAlertInfo({
+        word: null,
+        message:
+          "The selected image contains explicit, violent, or NSFW content and cannot be uploaded. Please choose another image.",
+      });
+      return;
+    }
     // Remove any existing image in the editor
     if (contentEditableRef.current) {
       contentEditableRef.current.innerHTML = removeImagesFromContent(

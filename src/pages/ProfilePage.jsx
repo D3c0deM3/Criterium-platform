@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { containsBannedWords } from "../utils/contentFilter";
+import { isImageSafe } from "../utils/imageContentChecker";
 
 const CLOUDINARY_CLOUD_NAME = "dn6uypx98";
 const CLOUDINARY_UPLOAD_PRESET = "profile_pics";
@@ -81,9 +82,21 @@ const ProfilePage = () => {
     profilePicInputRef.current.click();
   };
 
-  const handleProfilePicChange = (e) => {
+  const handleProfilePicChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
+      setProfilePicFile(null); // Reset first
+      setLoading(true);
+      const safe = await isImageSafe(file);
+      setLoading(false);
+      if (!safe) {
+        setAlertInfo({
+          word: null,
+          message:
+            "The selected image contains explicit, violent, or NSFW content and cannot be uploaded. Please choose another image.",
+        });
+        return;
+      }
       setProfilePicFile(file);
       const reader = new FileReader();
       reader.onload = (event) => {

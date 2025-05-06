@@ -6,6 +6,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import Sidebar from "./Sidebar";
 import { CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "../constants";
 import { bannedWords } from "../utils/contentFilter";
+import { isImageSafe } from "../utils/imageContentChecker";
 
 function normalizeText(text) {
   return text
@@ -128,39 +129,10 @@ const PostCreatePage = () => {
       });
       return;
     }
-    // Perspective API moderation check (after banned words check)
-    try {
-      const moderationRes = await fetch(
-        "https://content-moderation-server.onrender.com/moderate",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: plainText }),
-        }
-      );
-      const moderationData = await moderationRes.json();
-      if (moderationData.flagged) {
-        setAlertInfo({
-          word: null,
-          message:
-            "Your post contains content that is considered toxic or inappropriate by our moderation system. Please revise and try again.",
-        });
-        setSubmitting(false);
-        return;
-      }
-    } catch (err) {
-      setAlertInfo({
-        word: null,
-        message:
-          "Content moderation service is unavailable. Please try again later.",
-      });
-      setSubmitting(false);
-      return;
-    }
     setSubmitting(true);
     try {
-      // Moderation check (stricter)
-      const moderationRes = await fetch(
+      // Run moderation and image upload in parallel
+      const moderationPromise = fetch(
         "https://content-moderation-server.onrender.com/moderate",
         {
           method: "POST",
@@ -169,49 +141,18 @@ const PostCreatePage = () => {
             content: plainText + "\n" + normalizeText(plainText),
           }),
         }
-      );
-      const moderationData = await moderationRes.json();
-      if (moderationData.flagged) {
-        setAlertInfo({
-          word: null,
-          message:
-            "Your post contains content that is not allowed (politically sensitive or inappropriate). Please revise and try again.",
-        });
-        setSubmitting(false);
-        return;
-      }
-
-      const user = auth.currentUser;
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      const userData = userDoc.data();
-      const postId = Date.now().toString();
-      let content = contentEditableRef.current.innerHTML;
-      let photoURL = null;
-      let cleanedContent = content;
-      // If an image file is selected, upload to Cloudinary
+      ).then((res) => res.json());
+      let imageUploadPromise = Promise.resolve({ secure_url: null });
+      let cleanedContent = contentEditableRef.current.innerHTML;
       if (imageFile) {
         setImageUploading(true);
         const formData = new FormData();
         formData.append("file", imageFile);
         formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-        const res = await fetch(CLOUDINARY_UPLOAD_URL, {
+        imageUploadPromise = fetch(CLOUDINARY_UPLOAD_URL, {
           method: "POST",
           body: formData,
-        });
-        const data = await res.json();
-        setImageUploading(false);
-        if (data.secure_url) {
-          photoURL = data.secure_url;
-        } else {
-          setAlertInfo({
-            word: null,
-            message:
-              "Image upload failed: " +
-              (data.error?.message || "Unknown error"),
-          });
-          setSubmitting(false);
-          return;
-        }
+        }).then((res) => res.json());
         // Remove the preview image from the content
         cleanedContent = cleanedContent.replace(
           /<img[^>]*src=["']([^"']+)["'][^>]*>/i,
@@ -221,12 +162,40 @@ const PostCreatePage = () => {
         // Remove any <img> tags if present (shouldn't be, but for safety)
         cleanedContent = cleanedContent.replace(/<img[^>]*>/gi, "");
       }
+      const [moderationData, imageData] = await Promise.all([
+        moderationPromise,
+        imageUploadPromise,
+      ]);
+      setImageUploading(false);
+      if (moderationData.flagged) {
+        setAlertInfo({
+          word: null,
+          message:
+            "Your post contains content that is not allowed (politically sensitive or inappropriate). Please revise and try again.",
+        });
+        setSubmitting(false);
+        return;
+      }
+      if (imageFile && !imageData.secure_url) {
+        setAlertInfo({
+          word: null,
+          message:
+            "Image upload failed: " +
+            (imageData.error?.message || "Unknown error"),
+        });
+        setSubmitting(false);
+        return;
+      }
+      const user = auth.currentUser;
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      const userData = userDoc.data();
+      const postId = Date.now().toString();
       await setDoc(doc(db, "posts", postId), {
         id: postId,
         title: title.trim(),
         text: cleanedContent.trim(),
         username: userData.username,
-        photoURL: photoURL,
+        photoURL: imageData.secure_url || null,
         likes: 0,
         publishedAt: serverTimestamp(),
       });
@@ -255,9 +224,22 @@ const PostCreatePage = () => {
   };
 
   // Image upload handler (for preview only, not Cloudinary upload)
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    setImageFile(null); // Reset first
+    setImagePreviewUrl(null);
+    setImageUploading(true);
+    const safe = await isImageSafe(file);
+    setImageUploading(false);
+    if (!safe) {
+      setAlertInfo({
+        word: null,
+        message:
+          "The selected image contains explicit, violent, or NSFW content and cannot be uploaded. Please choose another image.",
+      });
+      return;
+    }
     // Remove any existing image in the editor
     const editor = contentEditableRef.current;
     if (editor) {
