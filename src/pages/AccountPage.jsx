@@ -45,29 +45,39 @@ const PencilIcon = (props) => (
 );
 
 async function deleteImageFromCloudinary(imageUrl) {
+  console.log("deleteImageFromCloudinary called with:", imageUrl);
   if (!imageUrl) return;
   try {
     const matches = imageUrl.match(/\/([^/]+)\.(jpg|jpeg|png|gif|webp)$/i);
+    console.log("deleteImageFromCloudinary matches:", matches);
     if (!matches) return;
     const publicId = encodeURIComponent("post_images/" + matches[1]);
+    console.log("deleteImageFromCloudinary publicId:", publicId);
     await fetch(
       `https://content-moderation-server.onrender.com/delete-image/${publicId}`,
       { method: "DELETE" }
     );
-  } catch (err) {}
+  } catch (err) {
+    console.error("deleteImageFromCloudinary error:", err);
+  }
 }
 
 async function deleteProfilePicFromCloudinary(imageUrl) {
+  console.log("deleteProfilePicFromCloudinary called with:", imageUrl);
   if (!imageUrl) return;
   try {
     const matches = imageUrl.match(/\/([^/]+)\.(jpg|jpeg|png|gif|webp)$/i);
+    console.log("deleteProfilePicFromCloudinary matches:", matches);
     if (!matches) return;
     const publicId = encodeURIComponent("profile_pics/" + matches[1]);
+    console.log("deleteProfilePicFromCloudinary publicId:", publicId);
     await fetch(
       `https://content-moderation-server.onrender.com/delete-image/${publicId}`,
       { method: "DELETE" }
     );
-  } catch (err) {}
+  } catch (err) {
+    console.error("deleteProfilePicFromCloudinary error:", err);
+  }
 }
 
 function EditProfileModal({ open, onClose, userProfile, onSave }) {
