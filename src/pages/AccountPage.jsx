@@ -49,11 +49,9 @@ async function deleteImageFromCloudinary(imageUrl) {
   try {
     const matches = imageUrl.match(/\/([^/]+)\.(jpg|jpeg|png|gif|webp)$/i);
     if (!matches) return;
-    const publicId = matches[1];
+    const publicId = encodeURIComponent("post_images/" + matches[1]);
     await fetch(
-      `https://content-moderation-server.onrender.com/delete-image?public_id=${encodeURIComponent(
-        "post_images/" + publicId
-      )}`,
+      `https://content-moderation-server.onrender.com/delete-image/${publicId}`,
       { method: "DELETE" }
     );
   } catch (err) {}
@@ -64,11 +62,9 @@ async function deleteProfilePicFromCloudinary(imageUrl) {
   try {
     const matches = imageUrl.match(/\/([^/]+)\.(jpg|jpeg|png|gif|webp)$/i);
     if (!matches) return;
-    const publicId = matches[1];
+    const publicId = encodeURIComponent("profile_pics/" + matches[1]);
     await fetch(
-      `https://content-moderation-server.onrender.com/delete-image?public_id=${encodeURIComponent(
-        "profile_pics/" + publicId
-      )}`,
+      `https://content-moderation-server.onrender.com/delete-image/${publicId}`,
       { method: "DELETE" }
     );
   } catch (err) {}
