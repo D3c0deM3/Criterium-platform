@@ -142,7 +142,7 @@ const PostEditor = ({
       const matches = imageUrl.match(/\/([^/]+)\.(jpg|jpeg|png|gif|webp)$/i);
       console.log("deletePostImageFromCloudinary matches:", matches);
       if (!matches) return;
-      const publicId = encodeURIComponent("post_images/" + matches[1]);
+      const publicId = encodeURIComponent(matches[1]);
       console.log("deletePostImageFromCloudinary publicId:", publicId);
       await fetch(
         `https://content-moderation-server.onrender.com/delete-image/${publicId}`,

@@ -51,7 +51,7 @@ async function deleteImageFromCloudinary(imageUrl) {
     const matches = imageUrl.match(/\/([^/]+)\.(jpg|jpeg|png|gif|webp)$/i);
     console.log("deleteImageFromCloudinary matches:", matches);
     if (!matches) return;
-    const publicId = encodeURIComponent("post_images/" + matches[1]);
+    const publicId = encodeURIComponent(matches[1]);
     console.log("deleteImageFromCloudinary publicId:", publicId);
     await fetch(
       `https://content-moderation-server.onrender.com/delete-image/${publicId}`,
@@ -69,7 +69,7 @@ async function deleteProfilePicFromCloudinary(imageUrl) {
     const matches = imageUrl.match(/\/([^/]+)\.(jpg|jpeg|png|gif|webp)$/i);
     console.log("deleteProfilePicFromCloudinary matches:", matches);
     if (!matches) return;
-    const publicId = encodeURIComponent("profile_pics/" + matches[1]);
+    const publicId = encodeURIComponent(matches[1]);
     console.log("deleteProfilePicFromCloudinary publicId:", publicId);
     await fetch(
       `https://content-moderation-server.onrender.com/delete-image/${publicId}`,
