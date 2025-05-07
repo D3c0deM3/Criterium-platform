@@ -24,6 +24,7 @@ import profileStyles from "../styles/ProfilePage.module.css";
 import { containsBannedWords } from "../utils/contentFilter";
 import { isImageSafe } from "../utils/imageContentChecker";
 import { CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "../constants";
+import FollowerListModal from "../components/FollowerListModal";
 
 const PERSON_ICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E";
@@ -476,6 +477,7 @@ const AccountPage = () => {
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [editModalPost, setEditModalPost] = useState(null);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [followerListOpen, setFollowerListOpen] = useState(false);
   const navigate = useNavigate();
   const menuRefs = useRef({});
 
@@ -744,7 +746,11 @@ const AccountPage = () => {
                 <span className={styles.statNumber}>{userPosts.length}</span>
                 <span className={styles.statLabel}>Posts</span>
               </div>
-              <div className={styles.statBox}>
+              <div 
+                className={styles.statBox} 
+                onClick={() => setFollowerListOpen(true)}
+                style={{ cursor: "pointer" }}
+              >
                 <span className={styles.statNumber}>{followers.length}</span>
                 <span className={styles.statLabel}>Followers</span>
               </div>
@@ -908,6 +914,12 @@ const AccountPage = () => {
             // Optionally update local state if needed
             setUserProfile((prev) => ({ ...prev, ...updated }));
           }}
+        />
+        <FollowerListModal
+          open={followerListOpen}
+          onClose={() => setFollowerListOpen(false)}
+          followers={followers}
+          currentUserProfile={userProfile}
         />
       </main>
     </div>

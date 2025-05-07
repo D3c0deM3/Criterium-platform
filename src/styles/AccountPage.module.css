@@ -78,6 +78,28 @@
   flex-direction: column;
   align-items: center;
   min-width: 70px;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.statBox:hover {
+  transform: translateY(-2px);
+  opacity: 0.8;
+}
+
+.statsRow .statBox {
+  position: relative;
+}
+
+.statsRow .statBox:hover::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 30px;
+  height: 2px;
+  background: #344955;
+  border-radius: 2px;
 }
 
 .statNumber {
@@ -594,4 +616,32 @@
 
 .postsGrid .postCard:only-child {
   grid-column: 1 / -1;
+}
+
+.modalOverlay {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.modalContent {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
