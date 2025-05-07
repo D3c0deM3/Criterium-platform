@@ -443,6 +443,10 @@ export default function CommentSection({
     setLikeLoading((prev) => ({ ...prev, [comment.id]: true }));
     const isLiked = comment.likedBy?.includes(currentUser.uid);
 
+    // Ensure likedBy is always an array
+    const currentLikedBy = comment.likedBy || [];
+
+    // Optimistic update
     setComments((prevComments) =>
       prevComments.map((c) =>
         c.id === comment.id
@@ -450,22 +454,28 @@ export default function CommentSection({
               ...c,
               likes: (c.likes || 0) + (isLiked ? -1 : 1),
               likedBy: isLiked
-                ? c.likedBy.filter((id) => id !== currentUser.uid)
-                : [...(c.likedBy || []), currentUser.uid],
+                ? currentLikedBy.filter((id) => id !== currentUser.uid)
+                : [...currentLikedBy, currentUser.uid],
             }
           : c
       )
     );
 
     try {
+      const batch = writeBatch(db);
       const commentRef = doc(db, "comments", comment.id);
-      await updateDoc(commentRef, {
+
+      // Update both likes count and likedBy array atomically
+      batch.update(commentRef, {
         likes: increment(isLiked ? -1 : 1),
         likedBy: isLiked
           ? arrayRemove(currentUser.uid)
           : arrayUnion(currentUser.uid),
       });
+
+      await batch.commit();
     } catch (err) {
+      // Revert the optimistic update in case of error
       setComments((prevComments) =>
         prevComments.map((c) =>
           c.id === comment.id
@@ -473,8 +483,8 @@ export default function CommentSection({
                 ...c,
                 likes: (c.likes || 0) + (isLiked ? 1 : -1),
                 likedBy: isLiked
-                  ? [...(c.likedBy || []), currentUser.uid]
-                  : c.likedBy.filter((id) => id !== currentUser.uid),
+                  ? [...currentLikedBy, currentUser.uid]
+                  : currentLikedBy.filter((id) => id !== currentUser.uid),
               }
             : c
         )
@@ -638,10 +648,27 @@ export default function CommentSection({
                     right: 0,
                     top: 0,
                     display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-end",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: "8px",
                   }}
                 >
+                  <button
+                    className={
+                      styles.likeButton + (isLiked ? " " + styles.liked : "")
+                    }
+                    style={{
+                      fontSize: 18,
+                      padding: "2px 8px",
+                      marginTop: "8px",
+                    }}
+                    onClick={() => handleLikeComment(comment)}
+                    aria-label={isLiked ? "Unlike comment" : "Like comment"}
+                    disabled={likeLoading[comment.id]}
+                  >
+                    {isLiked ? "❤️" : "🤍"}{" "}
+                    {formatLikesCount(comment.likes || 0)}
+                  </button>
                   {isOwn && (
                     <div
                       ref={(el) => (menuRefs.current[comment.id] = el)}
@@ -678,20 +705,6 @@ export default function CommentSection({
                       )}
                     </div>
                   )}
-                  <div style={{ paddingRight: 12 }}>
-                    <button
-                      className={
-                        styles.likeButton + (isLiked ? " " + styles.liked : "")
-                      }
-                      style={{ fontSize: 18, padding: "2px 8px" }}
-                      onClick={() => handleLikeComment(comment)}
-                      aria-label={isLiked ? "Unlike comment" : "Like comment"}
-                      disabled={likeLoading[comment.id]}
-                    >
-                      {isLiked ? "❤️" : "🤍"}{" "}
-                      {formatLikesCount(comment.likes || 0)}
-                    </button>
-                  </div>
                 </div>
               </div>
             );
