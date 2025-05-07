@@ -17,6 +17,7 @@ import {
   onSnapshot,
   deleteDoc,
   writeBatch,
+  where,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
@@ -24,6 +25,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import PostEditor, { Modal } from "../components/PostEditor.jsx";
 import ExpandablePostText from "../components/ExpandablePostText";
 import { containsBannedWords } from "../utils/contentFilter";
+import CommentSection from "../components/CommentSection";
 
 const POSTS_PAGE_SIZE = 15;
 
@@ -32,9 +34,19 @@ const PERSON_ICON =
 
 // Utility to format like numbers (e.g. 1.1K, 1M)
 function formatLikesCount(num) {
-  if (num >= 1e6) return (num / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
-  if (num >= 1e3) return (num / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
-  return num;
+  if (num >= 1e6) {
+    const formatted = (num / 1e6).toFixed(1);
+    return formatted.endsWith(".0")
+      ? formatted.slice(0, -2) + "M"
+      : formatted + "M";
+  }
+  if (num >= 1e3) {
+    const formatted = (num / 1e3).toFixed(1);
+    return formatted.endsWith(".0")
+      ? formatted.slice(0, -2) + "K"
+      : formatted + "K";
+  }
+  return num.toString();
 }
 
 // Author image cache (in-memory + localStorage)
@@ -128,6 +140,7 @@ const DashboardPage = () => {
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [editModalPost, setEditModalPost] = useState(null);
   const [alertInfo, setAlertInfo] = useState(null);
+  const [openComments, setOpenComments] = useState({}); // Track open comment sections
 
   useEffect(() => {
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
@@ -478,11 +491,14 @@ const DashboardPage = () => {
       }
       // Perspective API moderation check (after banned words check)
       try {
-        const moderationRes = await fetch("https://content-moderation-server.onrender.com/moderate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: plainText }),
-        });
+        const moderationRes = await fetch(
+          "https://content-moderation-server.onrender.com/moderate",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: plainText }),
+          }
+        );
         const moderationData = await moderationRes.json();
         if (moderationData.flagged) {
           setAlertInfo({
@@ -528,6 +544,19 @@ const DashboardPage = () => {
     } else {
       return "";
     }
+    // Use matchMedia to check if we're on a mobile screen
+    const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
+    if (isMobile) {
+      // For mobile, use numeric format with slashes
+      return dateObj.toLocaleDateString("en-US", {
+        month: "numeric",
+        day: "numeric",
+        year: "numeric",
+      });
+    }
+
+    // For desktop, keep the original format with month name
     return dateObj.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -543,7 +572,24 @@ const DashboardPage = () => {
     if (!window.confirm("Are you sure you want to remove this post?")) return;
     try {
       setLoading(true);
-      await deleteDoc(doc(db, "posts", postId));
+      // Delete all comments for this post first
+      const commentsQuery = query(
+        collection(db, "comments"),
+        where("postId", "==", postId)
+      );
+      const commentsSnapshot = await getDocs(commentsQuery);
+      const batch = writeBatch(db);
+
+      // Delete each comment
+      commentsSnapshot.docs.forEach((commentDoc) => {
+        batch.delete(doc(db, "comments", commentDoc.id));
+      });
+
+      // Delete the post
+      batch.delete(doc(db, "posts", postId));
+
+      await batch.commit();
+
       setPosts((prev) => prev.filter((p) => p.id !== postId));
       setFollowingPosts((prev) => prev.filter((p) => p.id !== postId));
       const cached = sessionStorage.getItem("postsWindow");
@@ -932,13 +978,69 @@ const DashboardPage = () => {
                                   {prettyDate(post.publishedAt)}
                                 </span>
                               </div>
-                              <LikeButton
-                                isLiked={isLiked}
-                                likeCount={post.likes || 0}
-                                loading={likeLoading[post.id]}
-                                onClick={() => handleLike(post.id, isLiked)}
-                              />
+                              {/* Comment and Like icons */}
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                >
+                                  <button
+                                    className={styles.commentIconButton}
+                                    aria-label="Show comments"
+                                    onClick={() =>
+                                      setOpenComments((prev) => ({
+                                        ...prev,
+                                        [post.id]: !prev[post.id],
+                                      }))
+                                    }
+                                  >
+                                    <img
+                                      src={
+                                        require("../assets/comment-icon.svg")
+                                          .default
+                                      }
+                                      alt="Comments"
+                                      width={24}
+                                      height={24}
+                                    />
+                                  </button>
+                                  <span className={styles.commentCount}>
+                                    {post.commentCount || 0}
+                                  </span>
+                                </div>
+                                <LikeButton
+                                  isLiked={isLiked}
+                                  likeCount={post.likes || 0}
+                                  loading={likeLoading[post.id]}
+                                  onClick={() => handleLike(post.id, isLiked)}
+                                />
+                              </div>
                             </div>
+                            {/* Move CommentSection here so it appears below the footer */}
+                            {openComments[post.id] && (
+                              <div
+                                style={{
+                                  background: "#f0f2f5",
+                                  borderRadius: 12,
+                                  marginTop: 8,
+                                }}
+                              >
+                                <CommentSection
+                                  postId={post.id}
+                                  currentUser={user}
+                                  authorImageCache={authorImageCache}
+                                />
+                              </div>
+                            )}
                           </div>
                           {editModalPost && editModalPost.id === post.id && (
                             <Modal

@@ -9,6 +9,7 @@ import {
   query,
   where,
   getDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { containsBannedWords } from "../utils/contentFilter";
@@ -189,7 +190,10 @@ const ProfilePage = () => {
     const saveProfile = async (photoURL = null) => {
       try {
         const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, {
+        const batch = writeBatch(db);
+
+        // Save the user profile
+        batch.set(userDocRef, {
           email: user.email,
           username: usernameValue,
           firstName: firstName.trim(),
@@ -198,6 +202,32 @@ const ProfilePage = () => {
           photoURL,
           createdAt: new Date(),
         });
+
+        // If there are any existing posts by temporary username, update them
+        const postsQuery = query(
+          collection(db, "posts"),
+          where("authorId", "==", user.uid)
+        );
+        const postsSnapshot = await getDocs(postsQuery);
+        postsSnapshot.docs.forEach((postDoc) => {
+          batch.update(doc(db, "posts", postDoc.id), {
+            username: usernameValue,
+          });
+        });
+
+        // Same for any existing comments
+        const commentsQuery = query(
+          collection(db, "comments"),
+          where("authorId", "==", user.uid)
+        );
+        const commentsSnapshot = await getDocs(commentsQuery);
+        commentsSnapshot.docs.forEach((commentDoc) => {
+          batch.update(doc(db, "comments", commentDoc.id), {
+            username: usernameValue,
+          });
+        });
+
+        await batch.commit();
         localStorage.setItem(
           "sidebarProfile",
           JSON.stringify({

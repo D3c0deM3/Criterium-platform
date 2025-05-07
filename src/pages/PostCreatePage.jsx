@@ -248,6 +248,7 @@ const PostCreatePage = () => {
         username: userData.username,
         photoURL: photoURL,
         likes: 0,
+        commentCount: 0,
         publishedAt: serverTimestamp(),
       });
       // Clean up preview URL

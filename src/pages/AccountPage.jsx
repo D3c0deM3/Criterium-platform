@@ -14,6 +14,7 @@ import {
   arrayRemove,
   deleteDoc,
   onSnapshot,
+  writeBatch,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import dashboardStyles from "../styles/DashboardPage.module.css";
@@ -221,16 +222,47 @@ function EditProfileModal({ open, onClose, userProfile, onSave }) {
         return;
       }
     }
-    // Save profile
+    // Update profile and posts in a batch
     try {
       const userDocRef = doc(db, "users", user.uid);
-      await updateDoc(userDocRef, {
+      const batch = writeBatch(db);
+
+      // Update user profile
+      batch.update(userDocRef, {
         username: usernameValue,
         firstName: firstName.trim(),
         lastName: lastName.trim() || null,
         bio: bio.trim() || null,
         photoURL,
       });
+
+      // If username changed, update all posts by this user
+      if (usernameValue !== userProfile.username) {
+        const postsQuery = query(
+          collection(db, "posts"),
+          where("username", "==", userProfile.username)
+        );
+        const postsSnapshot = await getDocs(postsQuery);
+        postsSnapshot.docs.forEach((postDoc) => {
+          batch.update(doc(db, "posts", postDoc.id), {
+            username: usernameValue,
+          });
+        });
+
+        // Also update all comments by this user
+        const commentsQuery = query(
+          collection(db, "comments"),
+          where("username", "==", userProfile.username)
+        );
+        const commentsSnapshot = await getDocs(commentsQuery);
+        commentsSnapshot.docs.forEach((commentDoc) => {
+          batch.update(doc(db, "comments", commentDoc.id), {
+            username: usernameValue,
+          });
+        });
+      }
+
+      await batch.commit();
       onSave &&
         onSave({ username: usernameValue, firstName, lastName, bio, photoURL });
       setLoading(false);
